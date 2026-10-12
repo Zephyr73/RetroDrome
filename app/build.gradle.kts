@@ -23,8 +23,6 @@ android {
         applicationId = namespace
         versionCode = 10703
         versionName = "7.0.3"
-
-        buildConfigField("String", "GOOGLE_PLAY_LICENSING_KEY", "\"${getProperty(getProperties("../public.properties"), "GOOGLE_PLAY_LICENSE_KEY")}\"")
     }
     val signingProperties = getProperties("retro.properties")
     val theSigningConfig = if (signingProperties != null) {
@@ -57,9 +55,6 @@ android {
 
     flavorDimensions += "version"
     productFlavors {
-        create("normal") {
-            dimension = "version"
-        }
         create("fdroid") {
             dimension = "version"
         }
@@ -112,11 +107,6 @@ dependencies {
     implementation(libs.androidx.palette.ktx)
 
     implementation(libs.androidx.mediarouter)
-    //Cast Dependencies
-    "normalImplementation"(libs.google.play.services.cast.framework)
-    //WebServer by NanoHttpd
-    "normalImplementation"(libs.nanohttpd)
-
     implementation(libs.androidx.navigation.runtime.ktx)
     implementation(libs.androidx.navigation.fragment.ktx)
     implementation(libs.androidx.navigation.ui.ktx)
@@ -130,9 +120,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.common.java8)
 
     implementation(libs.androidx.core.splashscreen)
-
-    "normalImplementation"(libs.google.feature.delivery)
-    "normalImplementation"(libs.google.play.review)
 
     implementation(libs.android.material)
 
