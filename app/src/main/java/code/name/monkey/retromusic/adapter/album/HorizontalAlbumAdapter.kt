@@ -52,7 +52,7 @@ class HorizontalAlbumAdapter(
         Glide.with(activity)
             .asBitmapPalette()
             .albumCoverOptions(album.safeGetFirstSong())
-            .load(RetroGlideExtension.getSongModel(album.safeGetFirstSong()))
+            .load(RetroGlideExtension.getAlbumModel(album))
             .into(object : RetroMusicColoredTarget(holder.image!!) {
                 override fun onColorReady(colors: MediaNotificationProcessor) {
                     setColors(colors, holder)

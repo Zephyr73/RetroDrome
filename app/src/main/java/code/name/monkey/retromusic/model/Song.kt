@@ -77,6 +77,36 @@ open class Song(
     }
 
 
+    fun copy(
+        id: Long = this.id,
+        title: String = this.title,
+        trackNumber: Int = this.trackNumber,
+        year: Int = this.year,
+        duration: Long = this.duration,
+        data: String = this.data,
+        dateModified: Long = this.dateModified,
+        albumId: Long = this.albumId,
+        albumName: String = this.albumName,
+        artistId: Long = this.artistId,
+        artistName: String = this.artistName,
+        composer: String? = this.composer,
+        albumArtist: String? = this.albumArtist
+    ): Song = Song(
+        id = id,
+        title = title,
+        trackNumber = trackNumber,
+        year = year,
+        duration = duration,
+        data = data,
+        dateModified = dateModified,
+        albumId = albumId,
+        albumName = albumName,
+        artistId = artistId,
+        artistName = artistName,
+        composer = composer,
+        albumArtist = albumArtist
+    )
+
     companion object {
 
         @JvmStatic

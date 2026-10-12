@@ -246,6 +246,11 @@ class AlbumDetailsFragment : AbsMainActivityFragment(R.layout.fragment_album_det
     }
 
     private fun moreAlbums(albums: List<Album>) {
+        if (albums.isEmpty()) {
+            binding.fragmentAlbumContent.moreTitle.hide()
+            binding.fragmentAlbumContent.moreRecyclerView.hide()
+            return
+        }
         binding.fragmentAlbumContent.moreTitle.show()
         binding.fragmentAlbumContent.moreRecyclerView.show()
         binding.fragmentAlbumContent.moreTitle.text =
@@ -309,7 +314,7 @@ class AlbumDetailsFragment : AbsMainActivityFragment(R.layout.fragment_album_det
             .asBitmapPalette()
             .albumCoverOptions(album.safeGetFirstSong())
             //.checkIgnoreMediaStore()
-            .load(RetroGlideExtension.getSongModel(album.safeGetFirstSong()))
+            .load(RetroGlideExtension.getAlbumModel(album))
             .into(object : SingleColorTarget(binding.image) {
                 override fun onColorReady(color: Int) {
                     setColors(color)

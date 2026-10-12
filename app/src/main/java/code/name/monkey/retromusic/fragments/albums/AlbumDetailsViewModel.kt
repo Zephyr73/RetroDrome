@@ -58,9 +58,15 @@ class AlbumDetailsViewModel(
     }
 
     fun getMoreAlbums(artist: Artist): LiveData<List<Album>> = liveData(IO) {
-        artist.albums.filter { item -> item.id != albumId }.let { albums ->
-            if (albums.isNotEmpty()) emit(albums)
+        val currentAlbum = repository.albumByIdAsync(albumId)
+        val currentKey = "${currentAlbum.artistName.trim().lowercase()}|||${currentAlbum.title.trim().lowercase()}"
+        val albums = artist.albums.filter { item ->
+            item.id != albumId &&
+            item.title.isNotBlank() &&
+            item.songs.isNotEmpty() &&
+            "${item.artistName.trim().lowercase()}|||${item.title.trim().lowercase()}" != currentKey
         }
+        emit(albums)
     }
 
     override fun onMediaStoreChanged() {

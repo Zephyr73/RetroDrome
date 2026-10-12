@@ -33,6 +33,7 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        code.name.monkey.retromusic.network.subsonic.SubsonicPreferences.init(this)
 
         startKoin {
             androidContext(this@App)

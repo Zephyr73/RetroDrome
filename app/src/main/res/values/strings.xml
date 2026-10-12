@@ -525,5 +525,33 @@
     <string name="retro_music_pro" translatable="false" />
     <string name="try_retro_music_premium" translatable="false" />
     <string name="listing_files" translatable="false" />
-
+    <string name="pref_subsonic_title">Self-Hosted Music (Navidrome)</string>
+    <string name="pref_subsonic_summary">Stream from Subsonic / Navidrome server</string>
+    <string name="subsonic_server_url_title">Server URL</string>
+    <string name="subsonic_server_url_summary">e.g. http://100.x.y.z:4533</string>
+    <string name="subsonic_username_title">Username</string>
+    <string name="subsonic_password_title">Password</string>
+    <string name="subsonic_test_connection_title">Test Connection</string>
+    <string name="subsonic_test_connection_summary">Check connection to your server</string>
+    <string name="subsonic_enable_title">Enable Subsonic</string>
+    <string name="subsonic_enable_summary">Enable streaming from Navidrome</string>
+    <string name="subsonic_connection_successful">Connection successful!</string>
+    <string name="subsonic_connection_failed">Connection failed. Please check URL and credentials.</string>
+    <string name="subsonic_source_local">Local</string>
+    <string name="subsonic_source_server">Server</string>
+    <string name="action_library_filter">Filter</string>
+    <string name="filter_all">All songs</string>
+    <string name="filter_local_only">Local only</string>
+    <string name="filter_server_only">Server only</string>
+    <string name="subsonic_status_title">Connection Status</string>
+    <string name="subsonic_status_connected">Connected</string>
+    <string name="subsonic_status_checking">Checking connection...</string>
+    <string name="subsonic_status_disconnected">Connection failed</string>
+    <string name="subsonic_status_disabled">Subsonic is disabled</string>
+    <string name="subsonic_status_not_configured">Not configured</string>
+    <string name="subsonic_status_online">Online</string>
+    <string name="subsonic_status_connecting">Connecting to server...</string>
+    <string name="subsonic_status_tap_to_retry">Tap to retry</string>
+    <string name="subsonic_status_enable_hint">Turn on switch above to connect</string>
+    <string name="subsonic_status_configure_hint">Configure server URL and credentials below</string>
 </resources>

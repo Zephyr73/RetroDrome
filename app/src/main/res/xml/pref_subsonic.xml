@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <code.name.monkey.appthemehelper.common.prefs.supportv7.ATEPreferenceCategory
+        android:layout="@layout/preference_category_title"
+        android:title="@string/pref_subsonic_title">
+
+        <code.name.monkey.appthemehelper.common.prefs.supportv7.ATESwitchPreference
+            android:key="subsonic_enabled"
+            android:layout="@layout/list_item_view_switch_no_title"
+            android:title="@string/subsonic_enable_title"
+            android:summary="@string/subsonic_enable_summary"
+            android:defaultValue="false" />
+
+        <code.name.monkey.retromusic.preferences.SubsonicStatusPreference
+            android:key="subsonic_connection_status"
+            android:layout="@layout/preference_subsonic_status" />
+
+        <code.name.monkey.appthemehelper.common.prefs.supportv7.ATEPreference
+            android:key="subsonic_server_url"
+            android:layout="@layout/list_item_view"
+            android:title="@string/subsonic_server_url_title"
+            android:summary="@string/subsonic_server_url_summary" />
+
+        <code.name.monkey.appthemehelper.common.prefs.supportv7.ATEPreference
+            android:key="subsonic_username"
+            android:layout="@layout/list_item_view"
+            android:title="@string/subsonic_username_title" />
+
+        <code.name.monkey.appthemehelper.common.prefs.supportv7.ATEPreference
+            android:key="subsonic_password"
+            android:layout="@layout/list_item_view"
+            android:title="@string/subsonic_password_title" />
+
+        <code.name.monkey.appthemehelper.common.prefs.supportv7.ATEPreference
+            android:key="subsonic_test_connection"
+            android:layout="@layout/list_item_view"
+            android:title="@string/subsonic_test_connection_title"
+            android:summary="@string/subsonic_test_connection_summary" />
+
+    </code.name.monkey.appthemehelper.common.prefs.supportv7.ATEPreferenceCategory>
+
+</androidx.preference.PreferenceScreen>

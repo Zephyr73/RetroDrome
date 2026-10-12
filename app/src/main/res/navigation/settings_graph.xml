@@ -75,6 +75,14 @@
             app:launchSingleTop="true"
             app:popEnterAnim="@anim/retro_fragment_close_enter"
             app:popExitAnim="@anim/retro_fragment_close_exit" />
+
+        <action
+            android:id="@+id/action_mainSettingsFragment_to_subsonicSettingsFragment"
+            app:destination="@id/subsonicSettingsFragment"
+            app:enterAnim="@anim/retro_fragment_open_enter"
+            app:exitAnim="@anim/retro_fragment_open_exit"
+            app:popEnterAnim="@anim/retro_fragment_close_enter"
+            app:popExitAnim="@anim/retro_fragment_close_exit" />
     </fragment>
 
     <fragment
@@ -116,5 +124,10 @@
         android:id="@+id/backup_fragment"
         android:name="code.name.monkey.retromusic.fragments.backup.BackupFragment"
         android:label="About" />
+
+    <fragment
+        android:id="@+id/subsonicSettingsFragment"
+        android:name="code.name.monkey.retromusic.fragments.settings.SubsonicSettingsFragment"
+        android:label="@string/pref_subsonic_title" />
 
 </navigation>

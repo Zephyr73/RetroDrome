@@ -183,11 +183,13 @@ abstract class AbsRecyclerViewFragment<A : RecyclerView.Adapter<*>, LM : Recycle
     }
 
     override fun onPrepareMenu(menu: Menu) {
+        setUpLibraryFilterMenu(menu)
         ToolbarContentTintHelper.handleOnPrepareOptionsMenu(requireActivity(), toolbar)
     }
 
     override fun onCreateMenu(menu: Menu, inflater: MenuInflater) {
         inflater.inflate(R.menu.menu_main, menu)
+        setUpLibraryFilterMenu(menu)
         ToolbarContentTintHelper.handleOnCreateOptionsMenu(
             requireContext(),
             toolbar,
@@ -196,8 +198,47 @@ abstract class AbsRecyclerViewFragment<A : RecyclerView.Adapter<*>, LM : Recycle
         )
     }
 
+    private fun setUpLibraryFilterMenu(menu: Menu) {
+        val filterItem = menu.findItem(R.id.action_library_filter) ?: return
+        if (!code.name.monkey.retromusic.network.subsonic.SubsonicPreferences.isEnabled) {
+            filterItem.isVisible = false
+            return
+        }
+        filterItem.isVisible = true
+        val subMenu = filterItem.subMenu ?: return
+        when (code.name.monkey.retromusic.network.subsonic.SubsonicPreferences.libraryFilter) {
+            code.name.monkey.retromusic.network.subsonic.SubsonicPreferences.FILTER_ALL ->
+                subMenu.findItem(R.id.action_filter_all)?.isChecked = true
+            code.name.monkey.retromusic.network.subsonic.SubsonicPreferences.FILTER_LOCAL ->
+                subMenu.findItem(R.id.action_filter_local)?.isChecked = true
+            code.name.monkey.retromusic.network.subsonic.SubsonicPreferences.FILTER_SERVER ->
+                subMenu.findItem(R.id.action_filter_server)?.isChecked = true
+        }
+    }
+
     override fun onMenuItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
+            R.id.action_filter_all -> {
+                item.isChecked = true
+                code.name.monkey.retromusic.network.subsonic.SubsonicPreferences.libraryFilter =
+                    code.name.monkey.retromusic.network.subsonic.SubsonicPreferences.FILTER_ALL
+                libraryViewModel.forceReload(code.name.monkey.retromusic.fragments.ReloadType.All)
+                return true
+            }
+            R.id.action_filter_local -> {
+                item.isChecked = true
+                code.name.monkey.retromusic.network.subsonic.SubsonicPreferences.libraryFilter =
+                    code.name.monkey.retromusic.network.subsonic.SubsonicPreferences.FILTER_LOCAL
+                libraryViewModel.forceReload(code.name.monkey.retromusic.fragments.ReloadType.All)
+                return true
+            }
+            R.id.action_filter_server -> {
+                item.isChecked = true
+                code.name.monkey.retromusic.network.subsonic.SubsonicPreferences.libraryFilter =
+                    code.name.monkey.retromusic.network.subsonic.SubsonicPreferences.FILTER_SERVER
+                libraryViewModel.forceReload(code.name.monkey.retromusic.fragments.ReloadType.All)
+                return true
+            }
             R.id.action_settings -> findNavController().navigate(
                 R.id.settings_fragment,
                 null,

@@ -79,6 +79,15 @@
             app:settingListItemTitle="@string/backup_restore_title" />
 
         <code.name.monkey.retromusic.views.SettingListItemView
+            android:id="@+id/subsonicSettings"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:settingListItemIcon="@drawable/ic_cloud"
+            app:settingListItemIconColor="@color/md_blue_A400"
+            app:settingListItemText="@string/pref_subsonic_summary"
+            app:settingListItemTitle="@string/pref_subsonic_title" />
+
+        <code.name.monkey.retromusic.views.SettingListItemView
             android:id="@+id/aboutSettings"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

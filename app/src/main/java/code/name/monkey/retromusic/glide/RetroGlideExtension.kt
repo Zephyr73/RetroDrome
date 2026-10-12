@@ -13,11 +13,13 @@ import code.name.monkey.retromusic.extensions.accentColor
 import code.name.monkey.retromusic.glide.artistimage.ArtistImage
 import code.name.monkey.retromusic.glide.audiocover.AudioFileCover
 import code.name.monkey.retromusic.glide.palette.BitmapPaletteWrapper
+import code.name.monkey.retromusic.model.Album
 import code.name.monkey.retromusic.model.Artist
 import code.name.monkey.retromusic.model.Song
 import code.name.monkey.retromusic.util.ArtistSignatureUtil
 import code.name.monkey.retromusic.util.CustomArtistImageUtil.Companion.getFile
 import code.name.monkey.retromusic.util.CustomArtistImageUtil.Companion.getInstance
+import code.name.monkey.retromusic.util.MusicUtil
 import code.name.monkey.retromusic.util.MusicUtil.getMediaStoreAlbumCoverUri
 import code.name.monkey.retromusic.util.PreferenceUtil
 import com.bumptech.glide.GenericTransitionOptions
@@ -58,7 +60,12 @@ object RetroGlideExtension {
     }
 
     private fun getSongModel(song: Song, ignoreMediaStore: Boolean): Any {
-        return if (ignoreMediaStore) {
+        if (code.name.monkey.retromusic.network.subsonic.SubsonicMapper.isSubsonicId(song.id)) {
+            val subsonicAlbumId = code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toSubsonicId(song.albumId)
+                ?: code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toSubsonicId(song.id) ?: ""
+            return code.name.monkey.retromusic.network.subsonic.SubsonicClientFactory.buildCoverArtUrl(subsonicAlbumId)
+        }
+        return if (ignoreMediaStore || MusicUtil.isAlbumNameUnknown(song.albumName, song.artistName)) {
             AudioFileCover(song.data)
         } else {
             getMediaStoreAlbumCoverUri(song.albumId)
@@ -69,18 +76,46 @@ object RetroGlideExtension {
         return getSongModel(song, PreferenceUtil.isIgnoreMediaStoreArtwork)
     }
 
+    fun getAlbumModel(album: Album): Any? {
+        if (code.name.monkey.retromusic.network.subsonic.SubsonicMapper.isSubsonicId(album.id)) {
+            val subsonicAlbumId = code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toSubsonicId(album.id) ?: ""
+            return code.name.monkey.retromusic.network.subsonic.SubsonicClientFactory.buildCoverArtUrl(subsonicAlbumId)
+        }
+        if (MusicUtil.isAlbumNameUnknown(album.title, album.artistName)) {
+            return null
+        }
+        val localSong = album.songs.firstOrNull { !code.name.monkey.retromusic.network.subsonic.SubsonicMapper.isSubsonicId(it.id) }
+        return getSongModel(localSong ?: album.safeGetFirstSong())
+    }
+
     fun getArtistModel(artist: Artist): Any {
+        val hasCustomImage = getInstance(getContext()).hasCustomArtistImage(artist)
+        if (hasCustomImage) {
+            return getFile(artist)
+        }
+        if (code.name.monkey.retromusic.network.subsonic.SubsonicMapper.isSubsonicId(artist.id)) {
+            val subsonicArtistId = code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toSubsonicId(artist.id) ?: ""
+            return code.name.monkey.retromusic.network.subsonic.SubsonicClientFactory.buildCoverArtUrl(subsonicArtistId)
+        }
         return getArtistModel(
             artist,
-            getInstance(getContext()).hasCustomArtistImage(artist),
+            false,
             false
         )
     }
 
     fun getArtistModel(artist: Artist, forceDownload: Boolean): Any {
+        val hasCustomImage = getInstance(getContext()).hasCustomArtistImage(artist)
+        if (hasCustomImage) {
+            return getFile(artist)
+        }
+        if (code.name.monkey.retromusic.network.subsonic.SubsonicMapper.isSubsonicId(artist.id)) {
+            val subsonicArtistId = code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toSubsonicId(artist.id) ?: ""
+            return code.name.monkey.retromusic.network.subsonic.SubsonicClientFactory.buildCoverArtUrl(subsonicArtistId)
+        }
         return getArtistModel(
             artist,
-            getInstance(getContext()).hasCustomArtistImage(artist),
+            false,
             forceDownload
         )
     }
@@ -111,7 +146,12 @@ object RetroGlideExtension {
     fun <T> RequestBuilder<T>.songCoverOptions(
         song: Song
     ): RequestBuilder<T> {
-        return diskCacheStrategy(DEFAULT_DISK_CACHE_STRATEGY)
+        val strategy = if (code.name.monkey.retromusic.network.subsonic.SubsonicMapper.isSubsonicId(song.id)) {
+            DiskCacheStrategy.AUTOMATIC
+        } else {
+            DEFAULT_DISK_CACHE_STRATEGY
+        }
+        return diskCacheStrategy(strategy)
             .error(getDrawable(DEFAULT_SONG_IMAGE))
             .placeholder(getDrawable(DEFAULT_SONG_IMAGE))
             .signature(createSignature(song))
@@ -127,7 +167,12 @@ object RetroGlideExtension {
     fun <T> RequestBuilder<T>.albumCoverOptions(
         song: Song
     ): RequestBuilder<T> {
-        return diskCacheStrategy(DEFAULT_DISK_CACHE_STRATEGY)
+        val strategy = if (code.name.monkey.retromusic.network.subsonic.SubsonicMapper.isSubsonicId(song.id)) {
+            DiskCacheStrategy.AUTOMATIC
+        } else {
+            DEFAULT_DISK_CACHE_STRATEGY
+        }
+        return diskCacheStrategy(strategy)
             .error(ContextCompat.getDrawable(getContext(), DEFAULT_ALBUM_IMAGE))
             .placeholder(ContextCompat.getDrawable(getContext(), DEFAULT_ALBUM_IMAGE))
             .signature(createSignature(song))

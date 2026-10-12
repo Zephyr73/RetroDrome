@@ -345,14 +345,60 @@ object MusicUtil : KoinComponent {
     }
 
     fun isArtistNameUnknown(artistName: String?): Boolean {
-        if (artistName.isNullOrEmpty()) {
-            return false
+        if (artistName.isNullOrBlank()) {
+            return true
         }
         if (artistName == Artist.UNKNOWN_ARTIST_DISPLAY_NAME) {
             return true
         }
-        val tempName = artistName.trim().lowercase()
-        return tempName == "unknown" || tempName == "<unknown>"
+        val tempName = artistName.trim().lowercase(java.util.Locale.ROOT)
+        return tempName == "unknown" ||
+            tempName == "<unknown>" ||
+            tempName == "unknown artist" ||
+            tempName == "<unknown artist>" ||
+            tempName == "-"
+    }
+
+    fun isAlbumNameUnknown(albumName: String?, artistName: String? = null): Boolean {
+        if (albumName.isNullOrBlank()) {
+            return true
+        }
+        val cleanAlbum = albumName.trim().lowercase(java.util.Locale.ROOT)
+        if (cleanAlbum == "unknown" ||
+            cleanAlbum == "<unknown>" ||
+            cleanAlbum == "-" ||
+            cleanAlbum == "untitled" ||
+            cleanAlbum == "unknown album" ||
+            cleanAlbum == "<unknown album>"
+        ) {
+            return true
+        }
+        val genericAlbumNames = setOf(
+            "music",
+            "download",
+            "downloads",
+            "audio",
+            "media",
+            "bluetooth",
+            "telegram",
+            "whatsapp audio",
+            "podcasts",
+            "ringtones",
+            "notifications",
+            "alarms",
+            "sdcard",
+            "internal storage",
+            "0",
+            "unknown",
+            "unsorted",
+            "untagged",
+            "misc",
+            "miscellaneous"
+        )
+        if (cleanAlbum in genericAlbumNames) {
+            return true
+        }
+        return false
     }
 
     fun isVariousArtists(artistName: String?): Boolean {

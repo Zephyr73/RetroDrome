@@ -25,6 +25,7 @@ import androidx.core.os.BundleCompat
 import androidx.core.os.bundleOf
 import androidx.core.text.parseAsHtml
 import androidx.fragment.app.DialogFragment
+import androidx.lifecycle.lifecycleScope
 import code.name.monkey.appthemehelper.util.VersionUtils
 import code.name.monkey.retromusic.EXTRA_SONG
 import code.name.monkey.retromusic.R
@@ -32,7 +33,12 @@ import code.name.monkey.retromusic.databinding.DialogFileDetailsBinding
 import code.name.monkey.retromusic.extensions.colorButtons
 import code.name.monkey.retromusic.extensions.materialDialog
 import code.name.monkey.retromusic.model.Song
+import code.name.monkey.retromusic.network.subsonic.SubsonicMapper
+import code.name.monkey.retromusic.network.subsonic.model.SubsonicSong
 import code.name.monkey.retromusic.util.MusicUtil
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jaudiotagger.audio.AudioFileIO
 import java.io.File
 
@@ -145,6 +151,19 @@ class SongDetailDialog : DialogFragment() {
                         MusicUtil.getReadableDurationString(song.duration)
                     )
                 }
+            } else if (SubsonicMapper.isSubsonicId(song.id)) {
+                val cached = SubsonicMapper.getCachedSong(song.id)
+                bindServerSongDetails(binding, context, song, cached)
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val fullSong = SubsonicMapper.getSongDetails(song.id)
+                    if (fullSong != null && fullSong != cached) {
+                        withContext(Dispatchers.Main) {
+                            if (isAdded && !isDetached) {
+                                bindServerSongDetails(binding, context, song, fullSong)
+                            }
+                        }
+                    }
+                }
             } else {
                 // fallback
                 binding.fileName.text =
@@ -161,6 +180,89 @@ class SongDetailDialog : DialogFragment() {
             .setView(binding.root)
             .create()
             .colorButtons()
+    }
+
+    private fun bindServerSongDetails(
+        binding: DialogFileDetailsBinding,
+        context: Context,
+        song: Song,
+        subSong: SubsonicSong?
+    ) {
+        val resolvedName = subSong?.path?.substringAfterLast('/')?.substringAfterLast('\\')
+            ?: if (!subSong?.suffix.isNullOrBlank()) "${song.title}.${subSong?.suffix}" else song.title
+        binding.fileName.text = makeTextWithTitle(context, R.string.label_file_name, resolvedName)
+
+        val resolvedPath = subSong?.path
+            ?: if (song.artistName.isNotBlank() && song.albumName.isNotBlank()) {
+                "${song.artistName}/${song.albumName}/$resolvedName"
+            } else {
+                resolvedName
+            }
+        binding.filePath.text = makeTextWithTitle(context, R.string.label_file_path, resolvedPath)
+
+        if (subSong?.size != null && subSong.size > 0) {
+            binding.fileSize.text = makeTextWithTitle(
+                context,
+                R.string.label_file_size,
+                getFileSizeString(subSong.size)
+            )
+        }
+
+        val dateString = parseDateCreated(subSong?.created) ?: if (song.dateModified > 0) {
+            MusicUtil.getDateModifiedString(song.dateModified * 1000L)
+        } else null
+        if (dateString != null) {
+            binding.dateModified.text = makeTextWithTitle(
+                context,
+                R.string.label_last_modified,
+                dateString
+            )
+        }
+
+        val format = (subSong?.suffix ?: subSong?.contentType?.substringAfter('/') ?: "").uppercase()
+        if (format.isNotBlank()) {
+            binding.fileFormat.text = makeTextWithTitle(context, R.string.label_file_format, format)
+        }
+
+        binding.trackLength.text = makeTextWithTitle(
+            context,
+            R.string.label_track_length,
+            MusicUtil.getReadableDurationString(song.duration)
+        )
+
+        val bitRate = subSong?.effectiveBitRate
+        if (bitRate != null && bitRate > 0) {
+            binding.bitrate.text = makeTextWithTitle(
+                context,
+                R.string.label_bit_rate,
+                "$bitRate kb/s"
+            )
+        }
+
+        val sampleRate = subSong?.effectiveSampleRate
+        if (sampleRate != null && sampleRate > 0) {
+            val bitDepthStr = if (subSong.bitDepth != null && subSong.bitDepth > 0) " (${subSong.bitDepth} bit)" else ""
+            binding.samplingRate.text = makeTextWithTitle(
+                context,
+                R.string.label_sampling_rate,
+                "$sampleRate Hz$bitDepthStr"
+            )
+        }
+    }
+
+    private fun parseDateCreated(created: String?): String? {
+        if (created.isNullOrBlank()) return null
+        return try {
+            val instant = java.time.Instant.parse(created)
+            MusicUtil.getDateModifiedString(instant.toEpochMilli())
+        } catch (e: Exception) {
+            try {
+                val zdt = java.time.ZonedDateTime.parse(created)
+                MusicUtil.getDateModifiedString(zdt.toInstant().toEpochMilli())
+            } catch (e2: Exception) {
+                created.substringBefore('T')
+            }
+        }
     }
 
     companion object {
@@ -181,9 +283,12 @@ class SongDetailDialog : DialogFragment() {
         }
 
         private fun getFileSizeString(sizeInBytes: Long): String {
-            val fileSizeInKB = sizeInBytes / 1024
-            val fileSizeInMB = fileSizeInKB / 1024
-            return "$fileSizeInMB MB"
+            val fileSizeInMB = sizeInBytes.toDouble() / (1024 * 1024)
+            return if (fileSizeInMB >= 0.1) {
+                String.format(java.util.Locale.getDefault(), "%.2f MB", fileSizeInMB)
+            } else {
+                "${sizeInBytes / 1024} KB"
+            }
         }
     }
 }

@@ -14,6 +14,8 @@
 
 package code.name.monkey.retromusic.glide.audiocover;
 
+import android.os.Environment;
+
 import org.jaudiotagger.audio.exceptions.CannotReadException;
 import org.jaudiotagger.audio.exceptions.InvalidAudioFrameException;
 import org.jaudiotagger.audio.exceptions.ReadOnlyFileException;
@@ -28,13 +30,72 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Set;
+
 public class AudioFileCoverUtils {
 
   public static final String[] FALLBACKS = {
     "cover.jpg", "album.jpg", "folder.jpg",
     "cover.png", "album.png", "folder.png",
-    "cover.webp", "album.webp", "folder.webp"
+    "cover.webp", "album.webp", "folder.webp",
+    "Cover.jpg", "Album.jpg", "Folder.jpg",
+    "Cover.png", "Album.png", "Folder.png"
   };
+
+  private static final Set<String> GENERIC_DIR_NAMES = new HashSet<>(Arrays.asList(
+      "music", "download", "downloads", "audio", "media", "bluetooth",
+      "podcasts", "ringtones", "notifications", "alarms", "documents",
+      "0", "sdcard", "storage", "emulated", "unknown", "unsorted", "untagged",
+      "misc", "miscellaneous", "telegram", "whatsapp audio", "internal storage"
+  ));
+
+  public static boolean isGenericDirectory(File dir) {
+    if (dir == null) {
+      return true;
+    }
+    String name = dir.getName().toLowerCase(Locale.ROOT);
+    if (name.isEmpty() || isStorageRoot(dir)) {
+      return true;
+    }
+    if (GENERIC_DIR_NAMES.contains(name)) {
+      File parent = dir.getParentFile();
+      if (parent == null || isStorageRoot(parent)) {
+        return true;
+      }
+      if (name.contains("download") || name.contains("bluetooth") || name.contains("telegram") || name.contains("whatsapp")) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean isStorageRoot(File file) {
+    if (file == null) {
+      return true;
+    }
+    try {
+      File extDir = Environment.getExternalStorageDirectory();
+      if (extDir != null && (file.equals(extDir) || file.equals(extDir.getParentFile()))) {
+        return true;
+      }
+    } catch (Exception ignored) {
+    }
+    String name = file.getName().toLowerCase(Locale.ROOT);
+    if (name.equals("0") || name.equals("sdcard") || name.equals("emulated") || name.equals("storage") || name.equals("mnt")) {
+      return true;
+    }
+    File p = file.getParentFile();
+    if (p != null) {
+      String pName = p.getName().toLowerCase(Locale.ROOT);
+      if (pName.equals("storage") || pName.equals("mnt")) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   public static InputStream fallback(String path) throws FileNotFoundException {
     // Method 1: use embedded high resolution album art if there is any
@@ -53,10 +114,12 @@ public class AudioFileCoverUtils {
 
     // Method 2: look for album art in external files
     final File parent = new File(path).getParentFile();
-    for (String fallback : FALLBACKS) {
-      File cover = new File(parent, fallback);
-      if (cover.exists()) {
-        return new FileInputStream(cover);
+    if (parent != null && !isGenericDirectory(parent)) {
+      for (String fallback : FALLBACKS) {
+        File cover = new File(parent, fallback);
+        if (cover.exists()) {
+          return new FileInputStream(cover);
+        }
       }
     }
     return null;

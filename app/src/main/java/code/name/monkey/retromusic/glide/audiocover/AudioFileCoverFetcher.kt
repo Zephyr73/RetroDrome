@@ -35,10 +35,13 @@ class AudioFileCoverFetcher(private val model: AudioFileCover) : DataFetcher<Inp
                 AudioFileCoverUtils.fallback(model.filePath)
             }
             callback.onDataReady(stream)
-        } catch (e: FileNotFoundException) {
+        } catch (e: Exception) {
             callback.onLoadFailed(e)
         } finally {
-            retriever.release()
+            try {
+                retriever.release()
+            } catch (ignored: Exception) {
+            }
         }
     }
 

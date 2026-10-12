@@ -26,6 +26,20 @@ fun getSongInfo(song: Song): String {
         } catch (er: Exception) {
             " - "
         }
+    } else if (code.name.monkey.retromusic.network.subsonic.SubsonicMapper.isSubsonicId(song.id)) {
+        val subSong = code.name.monkey.retromusic.network.subsonic.SubsonicMapper.getCachedSong(song.id)
+        if (subSong != null) {
+            val parts = mutableListOf<String>()
+            val format = (subSong.suffix ?: subSong.contentType?.substringAfter('/') ?: "").uppercase()
+            if (format.isNotBlank()) parts.add(format)
+            val bitRate = subSong.effectiveBitRate
+            if (bitRate != null && bitRate > 0) parts.add("$bitRate kb/s")
+            val sampleRate = subSong.effectiveSampleRate
+            if (sampleRate != null && sampleRate > 0) {
+                parts.add("${RetroUtil.frequencyCount(sampleRate)} kHz")
+            }
+            if (parts.isNotEmpty()) return parts.joinToString(" • ")
+        }
     }
     return "-"
 }

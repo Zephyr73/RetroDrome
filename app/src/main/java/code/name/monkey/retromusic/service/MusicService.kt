@@ -728,6 +728,18 @@ class MusicService : MediaBrowserServiceCompat(),
 
     override fun onTrackEnded() {
         acquireWakeLock()
+        val endedSong = currentSong
+        if (code.name.monkey.retromusic.network.subsonic.SubsonicMapper.isSubsonicId(endedSong.id)) {
+            serviceScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    val repo = org.koin.core.context.GlobalContext.get().get<code.name.monkey.retromusic.repository.Repository>()
+                    repo.subsonicRepository.scrobble(endedSong.id)
+                } catch (e: Exception) {
+                    // best effort
+                }
+            }
+        }
+
         // if there is a timer finished, don't continue
         if (pendingQuit
             || (repeatMode == REPEAT_MODE_NONE && isLastTrack)

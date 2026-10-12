@@ -116,7 +116,7 @@ open class AlbumAdapter(
             .asBitmapPalette()
             .albumCoverOptions(song)
             //.checkIgnoreMediaStore()
-            .load(RetroGlideExtension.getSongModel(song))
+            .load(RetroGlideExtension.getAlbumModel(album))
             .into(object : RetroMusicColoredTarget(holder.image!!) {
                 override fun onColorReady(colors: MediaNotificationProcessor) {
                     setColors(colors, holder)

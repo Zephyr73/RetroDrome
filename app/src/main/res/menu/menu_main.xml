@@ -86,6 +86,25 @@
         <menu></menu>
     </item>
     <item
+        android:id="@+id/action_library_filter"
+        android:icon="@drawable/ic_filter_list"
+        android:title="@string/action_library_filter"
+        app:showAsAction="never">
+        <menu>
+            <group android:checkableBehavior="single">
+                <item
+                    android:id="@+id/action_filter_all"
+                    android:title="@string/filter_all" />
+                <item
+                    android:id="@+id/action_filter_local"
+                    android:title="@string/filter_local_only" />
+                <item
+                    android:id="@+id/action_filter_server"
+                    android:title="@string/filter_server_only" />
+            </group>
+        </menu>
+    </item>
+    <item
         android:orderInCategory="10"
         android:id="@+id/action_settings"
         android:icon="@drawable/ic_settings"

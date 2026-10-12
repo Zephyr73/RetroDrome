@@ -95,7 +95,7 @@ class SearchAdapter(
                 holder.title?.text = album.title
                 holder.text?.text = album.artistName
                 Glide.with(activity).asDrawable().albumCoverOptions(album.safeGetFirstSong())
-                    .load(RetroGlideExtension.getSongModel(album.safeGetFirstSong()))
+                    .load(RetroGlideExtension.getAlbumModel(album))
                     .into(holder.image!!)
             }
 

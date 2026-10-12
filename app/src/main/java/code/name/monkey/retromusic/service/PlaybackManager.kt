@@ -222,5 +222,6 @@ class PlaybackManager(val context: Context) {
 
 enum class PlaybackLocation {
     LOCAL,
-    REMOTE
+    REMOTE,
+    REMOTE_SUBSONIC
 }

@@ -73,15 +73,23 @@ class LibraryViewModel(
             val suggestionsDeferred = async { repository.suggestions() }
             val genresDeferred = async { repository.fetchGenres() }
             val playlistsDeferred = async { repository.fetchPlaylistWithSongs() }
+            val albumsDeferred = async { repository.fetchAlbums() }
+            val artistsDeferred = async {
+                if (PreferenceUtil.albumArtistsOnly) repository.albumArtists() else repository.fetchArtists()
+            }
+            val songsDeferred = async { repository.allSongs() }
 
-            val songSnapshot = repository.allSongs()
+            val songSnapshot = songsDeferred.await()
             if (!isActive) return@launch
             songs.postValue(songSnapshot)
 
-            val albumSnapshot = repository.albumsForSongs(songSnapshot)
+            val albumSnapshot = albumsDeferred.await()
             if (!isActive) return@launch
             albums.postValue(albumSnapshot)
-            artists.postValue(repository.artistsForAlbums(albumSnapshot))
+
+            val artistSnapshot = artistsDeferred.await()
+            if (!isActive) return@launch
+            artists.postValue(artistSnapshot)
 
             suggestions.postValue(suggestionsDeferred.await())
             genres.postValue(genresDeferred.await())
@@ -152,6 +160,7 @@ class LibraryViewModel(
 
     fun forceReload(reloadType: ReloadType) = viewModelScope.launch(IO) {
         when (reloadType) {
+            All -> loadLibraryContent()
             Songs -> fetchSongs()
             Albums -> fetchAlbums()
             Artists -> fetchArtists()
@@ -161,6 +170,11 @@ class LibraryViewModel(
             Suggestions -> fetchSuggestions()
             PlayCount -> fetchPlayCountSongs()
         }
+    }
+
+    fun switchDataSource(source: String) {
+        code.name.monkey.retromusic.network.subsonic.SubsonicPreferences.activeSource = source
+        forceReload(ReloadType.All)
     }
 
     fun updateColor(newColor: Int) {
@@ -416,6 +430,7 @@ class LibraryViewModel(
 }
 
 enum class ReloadType {
+    All,
     Songs,
     Albums,
     Artists,
