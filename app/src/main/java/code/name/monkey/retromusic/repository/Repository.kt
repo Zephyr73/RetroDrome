@@ -19,8 +19,12 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.map
 import code.name.monkey.retromusic.*
 import code.name.monkey.retromusic.db.*
+import code.name.monkey.retromusic.db.catalog.MusicCatalogSyncEngine
+import code.name.monkey.retromusic.db.catalog.UnifiedMusicDao
 import code.name.monkey.retromusic.fragments.search.Filter
+import code.name.monkey.retromusic.helper.SortOrder
 import code.name.monkey.retromusic.model.*
+import code.name.monkey.retromusic.model.AbsCustomPlaylist
 import code.name.monkey.retromusic.model.smartplaylist.NotPlayedPlaylist
 import code.name.monkey.retromusic.network.LastFMService
 import code.name.monkey.retromusic.network.Result
@@ -28,8 +32,10 @@ import code.name.monkey.retromusic.network.Result.Error
 import code.name.monkey.retromusic.network.Result.Success
 import code.name.monkey.retromusic.network.model.LastFmAlbum
 import code.name.monkey.retromusic.network.model.LastFmArtist
+import code.name.monkey.retromusic.network.subsonic.SubsonicPreferences
 import code.name.monkey.retromusic.util.PreferenceUtil
 import code.name.monkey.retromusic.util.logE
+import java.text.Collator
 
 interface Repository {
 
@@ -94,6 +100,7 @@ interface Repository {
     suspend fun searchArtists(query: String): List<Artist>
     suspend fun searchSongs(query: String): List<Song>
     suspend fun searchAlbums(query: String): List<Album>
+    val subsonicRepository: SubsonicRepository
     suspend fun isSongFavorite(songId: Long): Boolean
     fun getSongByGenre(genreId: Long): Song
     fun checkPlaylistExists(playListId: Long): LiveData<Boolean>
@@ -113,40 +120,114 @@ class RealRepository(
     private val topPlayedRepository: TopPlayedRepository,
     private val roomRepository: RoomRepository,
     private val localDataRepository: LocalDataRepository,
+    override val subsonicRepository: SubsonicRepository,
+    private val catalogDao: UnifiedMusicDao,
+    private val syncEngine: MusicCatalogSyncEngine
 ) : Repository {
 
-    override suspend fun deleteSongs(songs: List<Song>) = roomRepository.deleteSongs(songs)
+    private fun getSourceMask(): Int {
+        return when (SubsonicPreferences.libraryFilter) {
+            SubsonicPreferences.FILTER_LOCAL -> 1
+            SubsonicPreferences.FILTER_SERVER -> 2
+            else -> 3
+        }
+    }
+
+    private suspend fun ensureCatalogLoaded() {
+        if (catalogDao.getSongCount() == 0) {
+            syncEngine.syncAll(songRepository, albumRepository, artistRepository, genreRepository)
+        }
+    }
+
+    override suspend fun deleteSongs(songs: List<Song>) {
+        roomRepository.deleteSongs(songs)
+        syncEngine.syncLocalCatalog(songRepository, albumRepository, artistRepository, genreRepository)
+    }
 
     override suspend fun contributor(): List<Contributor> = localDataRepository.contributors()
 
-    override suspend fun searchSongs(query: String): List<Song> = songRepository.songs(query)
-
-    override suspend fun searchAlbums(query: String): List<Album> = albumRepository.albums(query)
-
-    override suspend fun isSongFavorite(songId: Long): Boolean =
-        roomRepository.isSongFavorite(context, songId)
-
-    override fun getSongByGenre(genreId: Long): Song = genreRepository.song(genreId)
-
     override suspend fun searchArtists(query: String): List<Artist> =
-        artistRepository.artists(query)
+        search(query, Filter.ARTISTS).filterIsInstance<Artist>()
 
-    override suspend fun fetchAlbums(): List<Album> = albumRepository.albums()
+    override suspend fun searchSongs(query: String): List<Song> =
+        search(query, Filter.SONGS).filterIsInstance<Song>()
+
+    override suspend fun searchAlbums(query: String): List<Album> =
+        search(query, Filter.ALBUMS).filterIsInstance<Album>()
+
+    override suspend fun fetchAlbums(): List<Album> {
+        ensureCatalogLoaded()
+        val mask = getSourceMask()
+        val albumEntities = catalogDao.getAlbumsFiltered(mask)
+        val albums = albumEntities.map { albumEntity ->
+            val songs = catalogDao.getSongsByAlbumIdFiltered(albumEntity.id, mask).map { it.toSong() }
+            albumEntity.toAlbum(songs)
+        }
+        val collator = Collator.getInstance()
+        return when (PreferenceUtil.albumSortOrder) {
+            SortOrder.AlbumSortOrder.ALBUM_A_Z -> albums.sortedWith { a1, a2 -> collator.compare(a1.title, a2.title) }
+            SortOrder.AlbumSortOrder.ALBUM_Z_A -> albums.sortedWith { a1, a2 -> collator.compare(a2.title, a1.title) }
+            SortOrder.AlbumSortOrder.ALBUM_ARTIST -> albums.sortedWith { a1, a2 -> collator.compare(a1.artistName, a2.artistName) }
+            SortOrder.AlbumSortOrder.ALBUM_NUMBER_OF_SONGS -> albums.sortedByDescending { it.songCount }
+            SortOrder.AlbumSortOrder.ALBUM_YEAR -> albums.sortedByDescending { it.year }
+            SortOrder.AlbumSortOrder.ALBUM_DATE_ADDED -> albums.sortedByDescending { it.dateModified }
+            else -> albums
+        }
+    }
 
     fun albumsForSongs(songs: List<Song>): List<Album> = albumRepository.albums(songs)
 
-    override suspend fun albumByIdAsync(albumId: Long): Album = albumRepository.album(albumId)
+    override suspend fun albumByIdAsync(albumId: Long): Album {
+        val mask = getSourceMask()
+        val albumEntity = catalogDao.getAlbumById(albumId)
+        if (albumEntity != null) {
+            val songs = catalogDao.getSongsByAlbumIdFiltered(albumId, mask).map { it.toSong() }
+            return albumEntity.toAlbum(songs)
+        }
+        return albumRepository.album(albumId)
+    }
 
-    override fun albumById(albumId: Long): Album = albumRepository.album(albumId)
+    override fun albumById(albumId: Long): Album =
+        kotlinx.coroutines.runBlocking { albumByIdAsync(albumId) }
 
-    override suspend fun fetchArtists(): List<Artist> = artistRepository.artists()
+    override suspend fun fetchArtists(): List<Artist> {
+        ensureCatalogLoaded()
+        val mask = getSourceMask()
+        val artistEntities = catalogDao.getArtistsFiltered(mask)
+        val artists = artistEntities.map { artistEntity ->
+            val albums = catalogDao.getAlbumsByArtistIdFiltered(artistEntity.id, mask).map { albumEntity ->
+                val songs = catalogDao.getSongsByAlbumIdFiltered(albumEntity.id, mask).map { it.toSong() }
+                albumEntity.toAlbum(songs)
+            }
+            artistEntity.toArtist(albums)
+        }
+        val collator = Collator.getInstance()
+        return when (PreferenceUtil.artistSortOrder) {
+            SortOrder.ArtistSortOrder.ARTIST_A_Z -> artists.sortedWith { a1, a2 -> collator.compare(a1.name, a2.name) }
+            SortOrder.ArtistSortOrder.ARTIST_Z_A -> artists.sortedWith { a1, a2 -> collator.compare(a2.name, a1.name) }
+            SortOrder.ArtistSortOrder.ARTIST_NUMBER_OF_SONGS -> artists.sortedByDescending { it.songCount }
+            SortOrder.ArtistSortOrder.ARTIST_NUMBER_OF_ALBUMS -> artists.sortedByDescending { it.albumCount }
+            else -> artists
+        }
+    }
 
     fun artistsForAlbums(albums: List<Album>): List<Artist> =
         artistRepository.artists(albums, PreferenceUtil.albumArtistsOnly)
 
-    override suspend fun albumArtists(): List<Artist> = artistRepository.albumArtists()
+    override suspend fun albumArtists(): List<Artist> = fetchArtists()
 
-    override suspend fun artistById(artistId: Long): Artist = artistRepository.artist(artistId)
+    override suspend fun artistById(artistId: Long): Artist {
+        val mask = getSourceMask()
+        val artistEntity = catalogDao.getArtistById(artistId)
+        if (artistEntity != null) {
+            val albums = catalogDao.getAlbumsByArtistIdFiltered(artistId, mask).map { albumEntity ->
+                val songs = catalogDao.getSongsByAlbumIdFiltered(albumEntity.id, mask).map { it.toSong() }
+                albumEntity.toAlbum(songs)
+            }
+            return artistEntity.toArtist(albums)
+        }
+        return artistRepository.artist(artistId)
+    }
 
     override suspend fun albumArtistByName(name: String): Artist =
         artistRepository.albumArtist(name)
@@ -161,12 +242,71 @@ class RealRepository(
 
     override suspend fun fetchLegacyPlaylist(): List<Playlist> = playlistRepository.playlists()
 
-    override suspend fun fetchGenres(): List<Genre> = genreRepository.genres()
+    override suspend fun fetchGenres(): List<Genre> {
+        val genres = catalogDao.getAllGenres().map { it.toGenre() }
+        return genres.ifEmpty { genreRepository.genres() }
+    }
 
-    override suspend fun allSongs(): List<Song> = songRepository.songs()
+    override suspend fun allSongs(): List<Song> {
+        ensureCatalogLoaded()
+        val mask = getSourceMask()
+        val songs = catalogDao.getSongsFiltered(mask).map { it.toSong() }
+        val collator = Collator.getInstance()
+        return when (PreferenceUtil.songSortOrder) {
+            SortOrder.SongSortOrder.SONG_A_Z -> songs.sortedWith { s1, s2 -> collator.compare(s1.title, s2.title) }
+            SortOrder.SongSortOrder.SONG_Z_A -> songs.sortedWith { s1, s2 -> collator.compare(s2.title, s1.title) }
+            SortOrder.SongSortOrder.SONG_ARTIST -> songs.sortedWith { s1, s2 -> collator.compare(s1.artistName, s2.artistName) }
+            SortOrder.SongSortOrder.SONG_ALBUM -> songs.sortedWith { s1, s2 -> collator.compare(s1.albumName, s2.albumName) }
+            SortOrder.SongSortOrder.SONG_YEAR -> songs.sortedByDescending { it.year }
+            SortOrder.SongSortOrder.SONG_DURATION -> songs.sortedByDescending { it.duration }
+            SortOrder.SongSortOrder.SONG_DATE_MODIFIED -> songs.sortedByDescending { it.dateModified }
+            else -> songs
+        }
+    }
 
-    override suspend fun search(query: String?, filter: Filter): MutableList<Any> =
-        searchRepository.searchAll(context, query, filter)
+    override suspend fun search(query: String?, filter: Filter): MutableList<Any> {
+        if (query.isNullOrBlank()) return mutableListOf()
+        val mask = getSourceMask()
+        val results = mutableListOf<Any>()
+        when (filter) {
+            Filter.SONGS -> results.addAll(catalogDao.searchSongs(query, mask).map { it.toSong() })
+            Filter.ALBUMS -> {
+                val albums = catalogDao.searchAlbums(query, mask).map { albumEntity ->
+                    val songs = catalogDao.getSongsByAlbumIdFiltered(albumEntity.id, mask).map { it.toSong() }
+                    albumEntity.toAlbum(songs)
+                }
+                results.addAll(albums)
+            }
+            Filter.ARTISTS -> {
+                val artists = catalogDao.searchArtists(query, mask).map { artistEntity ->
+                    val albums = catalogDao.getAlbumsByArtistIdFiltered(artistEntity.id, mask).map { albumEntity ->
+                        val songs = catalogDao.getSongsByAlbumIdFiltered(albumEntity.id, mask).map { it.toSong() }
+                        albumEntity.toAlbum(songs)
+                    }
+                    artistEntity.toArtist(albums)
+                }
+                results.addAll(artists)
+            }
+            Filter.NO_FILTER -> {
+                results.addAll(catalogDao.searchSongs(query, mask).map { it.toSong() })
+                val albums = catalogDao.searchAlbums(query, mask).map { albumEntity ->
+                    val songs = catalogDao.getSongsByAlbumIdFiltered(albumEntity.id, mask).map { it.toSong() }
+                    albumEntity.toAlbum(songs)
+                }
+                results.addAll(albums)
+                val artists = catalogDao.searchArtists(query, mask).map { artistEntity ->
+                    val albums = catalogDao.getAlbumsByArtistIdFiltered(artistEntity.id, mask).map { albumEntity ->
+                        val songs = catalogDao.getSongsByAlbumIdFiltered(albumEntity.id, mask).map { it.toSong() }
+                        albumEntity.toAlbum(songs)
+                    }
+                    artistEntity.toArtist(albums)
+                }
+                results.addAll(artists)
+            }
+            else -> {}
+        }
+        return results
+    }
 
     override suspend fun getPlaylistSongs(playlist: Playlist): List<Song> =
         if (playlist is AbsCustomPlaylist) {
@@ -175,7 +315,18 @@ class RealRepository(
             PlaylistSongsLoader.getPlaylistSongList(context, playlist.id)
         }
 
-    override suspend fun getGenre(genreId: Long): List<Song> = genreRepository.songs(genreId)
+    override suspend fun getGenre(genreId: Long): List<Song> {
+        val songs = catalogDao.getSongsByGenreId(genreId).map { it.toSong() }
+        return songs.ifEmpty { genreRepository.songs(genreId) }
+    }
+
+    override fun getSongByGenre(genreId: Long): Song = kotlinx.coroutines.runBlocking {
+        catalogDao.getSongsByGenreId(genreId).firstOrNull()?.toSong() ?: Song.emptySong
+    }
+
+    override suspend fun isSongFavorite(songId: Long): Boolean {
+        return favoritePlaylistSongs().any { it.id == songId }
+    }
 
     override suspend fun artistInfo(
         name: String,
@@ -219,7 +370,6 @@ class RealRepository(
         }
         return homeSections
     }
-
 
     override suspend fun playlist(playlistId: Long) =
         playlistRepository.playlist(playlistId)

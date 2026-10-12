@@ -61,6 +61,28 @@ private val roomModule = module {
         RealRoomRepository(get(), get(), get())
     } bind RoomRepository::class
 }
+
+private val catalogModule = module {
+    single {
+        Room.databaseBuilder(
+            androidContext(),
+            code.name.monkey.retromusic.db.catalog.MusicCatalogDatabase::class.java,
+            "music_catalog.db"
+        ).fallbackToDestructiveMigration(true).build()
+    }
+
+    factory {
+        get<code.name.monkey.retromusic.db.catalog.MusicCatalogDatabase>().unifiedMusicDao()
+    }
+
+    single {
+        code.name.monkey.retromusic.db.catalog.MusicCatalogSyncEngine(
+            context = androidContext(),
+            dao = get(),
+            subsonicRepo = get()
+        )
+    }
+}
 private val autoModule = module {
     single {
         AutoMusicProvider(
@@ -84,7 +106,14 @@ private val mainModule = module {
 }
 private val dataModule = module {
     single {
+        RealSubsonicRepository()
+    } bind SubsonicRepository::class
+
+    single {
         RealRepository(
+            get(),
+            get(),
+            get(),
             get(),
             get(),
             get(),
@@ -182,4 +211,4 @@ private val viewModules = module {
     }
 }
 
-val appModules = listOf(mainModule, dataModule, autoModule, viewModules, networkModule, roomModule)
+val appModules = listOf(mainModule, dataModule, autoModule, viewModules, networkModule, roomModule, catalogModule)
