@@ -1,0 +1,113 @@
+From ad6c57f24a405ee0f45b98a4c637204a57b4f64d Mon Sep 17 00:00:00 2001
+From: Zephyr <Zephyr73@users.noreply.github.com>
+Date: Mon, 12 Oct 2026 18:13:20 -0400
+Subject: [PATCH 1/5] feat: configure pure F-Droid build and strip Google Play
+ dependencies
+
+---
+ .github/workflows/android.yml                       |  6 +-----
+ .github/workflows/release.yml                       |  3 +--
+ app/build.gradle.kts                                | 13 -------------
+ .../name/monkey/retromusic/extensions/extensions.kt |  5 ++++-
+ 4 files changed, 6 insertions(+), 21 deletions(-)
+
+diff --git a/.github/workflows/android.yml b/.github/workflows/android.yml
+index adffb9a39..cc7612cb7 100644
+--- a/.github/workflows/android.yml
++++ b/.github/workflows/android.yml
+@@ -31,12 +31,8 @@ jobs:
+           java-version: 21
+       - uses: gradle/actions/setup-gradle@v4
+       - name: Build
+-        run: ./gradlew app:assemble
++        run: ./gradlew :app:assembleFdroidRelease
+       - uses: actions/upload-artifact@v4
+         with:
+           name: fdroid-release-apk
+           path: app/build/outputs/apk/fdroid/release/app-fdroid-release.apk
+-      - uses: actions/upload-artifact@v4
+-        with:
+-          name: normal-release-apk
+-          path: app/build/outputs/apk/normal/release/app-normal-release.apk
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+index b2e3cb1bd..b720d6186 100644
+--- a/.github/workflows/release.yml
++++ b/.github/workflows/release.yml
+@@ -21,11 +21,10 @@ jobs:
+       - name: Setup Signing
+         run: ./ci_signing_setup.sh
+       - name: Build
+-        run: ./gradlew app:assemble
++        run: ./gradlew :app:assembleFdroidRelease
+       - name: Github Release
+         uses: softprops/action-gh-release@v2
+         with:
+           generate_release_notes: true
+           files: |
+             app/build/outputs/apk/fdroid/release/app-fdroid-release.apk
+-            app/build/outputs/apk/normal/release/app-normal-release.apk
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index 2ce812c8d..84566165b 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -23,8 +23,6 @@ android {
+         applicationId = namespace
+         versionCode = 10703
+         versionName = "7.0.3"
+-
+-        buildConfigField("String", "GOOGLE_PLAY_LICENSING_KEY", "\"${getProperty(getProperties("../public.properties"), "GOOGLE_PLAY_LICENSE_KEY")}\"")
+     }
+     val signingProperties = getProperties("retro.properties")
+     val theSigningConfig = if (signingProperties != null) {
+@@ -57,9 +55,6 @@ android {
+ 
+     flavorDimensions += "version"
+     productFlavors {
+-        create("normal") {
+-            dimension = "version"
+-        }
+         create("fdroid") {
+             dimension = "version"
+         }
+@@ -112,11 +107,6 @@ dependencies {
+     implementation(libs.androidx.palette.ktx)
+ 
+     implementation(libs.androidx.mediarouter)
+-    //Cast Dependencies
+-    "normalImplementation"(libs.google.play.services.cast.framework)
+-    //WebServer by NanoHttpd
+-    "normalImplementation"(libs.nanohttpd)
+-
+     implementation(libs.androidx.navigation.runtime.ktx)
+     implementation(libs.androidx.navigation.fragment.ktx)
+     implementation(libs.androidx.navigation.ui.ktx)
+@@ -131,9 +121,6 @@ dependencies {
+ 
+     implementation(libs.androidx.core.splashscreen)
+ 
+-    "normalImplementation"(libs.google.feature.delivery)
+-    "normalImplementation"(libs.google.play.review)
+-
+     implementation(libs.android.material)
+ 
+     implementation(libs.retrofit)
+diff --git a/app/src/fdroid/java/code/name/monkey/retromusic/extensions/extensions.kt b/app/src/fdroid/java/code/name/monkey/retromusic/extensions/extensions.kt
+index c4ac57bdb..fd4f02404 100644
+--- a/app/src/fdroid/java/code/name/monkey/retromusic/extensions/extensions.kt
++++ b/app/src/fdroid/java/code/name/monkey/retromusic/extensions/extensions.kt
+@@ -5,8 +5,11 @@ package code.name.monkey.retromusic.extensions
+ import android.content.Context
+ import android.view.Menu
+ import androidx.fragment.app.FragmentActivity
++import code.name.monkey.retromusic.R
+ 
+-fun Context.setUpMediaRouteButton(menu: Menu) {}
++fun Context.setUpMediaRouteButton(menu: Menu) {
++    menu.findItem(R.id.action_cast)?.isVisible = false
++}
+ 
+ fun FragmentActivity.installLanguageAndRecreate(code: String, onInstallComplete: () -> Unit) {
+     onInstallComplete()
+-- 
+2.45.2.windows.1
+
