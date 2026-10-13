@@ -1,7 +1,7 @@
 From 529f396a3d18eb95120361365d01002bc2d4b173 Mon Sep 17 00:00:00 2001
 From: Zephyr <Zephyr73@users.noreply.github.com>
 Date: Mon, 12 Oct 2026 21:03:44 -0400
-Subject: [PATCH 11/12] feat: use flat AMOLED list design for About section
+Subject: [PATCH 11/13] feat: use flat AMOLED list design for About section
  matching Metro
 
 ---

@@ -1,7 +1,7 @@
 From 4ce5f69b3bcd8b21c725c785584e40353620d52d Mon Sep 17 00:00:00 2001
 From: Zephyr <Zephyr73@users.noreply.github.com>
 Date: Mon, 12 Oct 2026 20:52:44 -0400
-Subject: [PATCH 10/12] feat: simplify About section to version, GitHub,
+Subject: [PATCH 10/13] feat: simplify About section to version, GitHub,
  changelog, and licenses
 
 ---

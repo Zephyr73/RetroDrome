@@ -1,7 +1,7 @@
 From edaedddb64fc0f839498a80a3b7c7727e7f29471 Mon Sep 17 00:00:00 2001
 From: Zephyr <Zephyr73@users.noreply.github.com>
 Date: Mon, 12 Oct 2026 21:36:14 -0400
-Subject: [PATCH 12/12] feat: implement dual versioning and harden upstream
+Subject: [PATCH 12/13] feat: implement dual versioning and harden upstream
  sync and release automation
 
 ---
