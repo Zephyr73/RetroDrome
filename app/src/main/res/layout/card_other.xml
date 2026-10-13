@@ -19,7 +19,7 @@
             android:paddingTop="?attr/listPreferredItemPaddingStart"
             android:paddingEnd="?attr/listPreferredItemPaddingEnd"
             android:paddingBottom="?attr/listPreferredItemPaddingEnd"
-            android:text="@string/others"
+            android:text="@string/action_about"
             android:textAppearance="@style/TextViewNormal"
             android:textColor="?colorAccent"
             app:layout_constrainedWidth="true"
@@ -28,6 +28,30 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
+        <code.name.monkey.retromusic.views.ListItemView
+            android:id="@+id/version"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            app:layout_constrainedWidth="true"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/sb4"
+            app:listItemIcon="@drawable/ic_info_outline"
+            app:listItemTitle="@string/version" />
+
+        <code.name.monkey.retromusic.views.ListItemView
+            android:id="@+id/appGithub"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            app:layout_constrainedWidth="true"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/version"
+            app:listItemIcon="@drawable/ic_github_circle"
+            app:listItemSummary="@string/git_hub_summary"
+            app:listItemTitle="@string/git_hub" />
 
         <code.name.monkey.retromusic.views.ListItemView
             android:id="@+id/changelog"
@@ -37,7 +61,7 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintHorizontal_bias="0"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/sb4"
+            app:layout_constraintTop_toBottomOf="@id/appGithub"
             app:listItemIcon="@drawable/ic_file_edit"
             app:listItemSummary="@string/changelog_summary"
             app:listItemTitle="@string/changelog" />
@@ -54,32 +78,5 @@
             app:listItemIcon="@drawable/ic_license"
             app:listItemSummary="@string/pref_summary_open_source_licences"
             app:listItemTitle="@string/pref_title_open_source_licences" />
-
-        <code.name.monkey.retromusic.views.ListItemView
-            android:id="@+id/version"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            app:layout_constrainedWidth="true"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintHorizontal_bias="0"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/openSource"
-            app:listItemIcon="@drawable/ic_info_outline"
-            app:listItemSummary="@string/pref_summary_open_source_licences"
-            app:listItemTitle="@string/version" />
-
-        <com.google.android.material.textview.MaterialTextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:gravity="center"
-            android:padding="16dp"
-            android:text="@string/made_with_love"
-            android:textAppearance="@style/TextViewBody1"
-            app:layout_constrainedWidth="true"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintHorizontal_bias="0"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/version" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 </com.google.android.material.card.MaterialCardView>
