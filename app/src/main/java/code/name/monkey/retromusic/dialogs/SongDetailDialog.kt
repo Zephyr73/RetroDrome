@@ -253,15 +253,28 @@ class SongDetailDialog : DialogFragment() {
     private fun parseDateCreated(created: String?): String? {
         if (created.isNullOrBlank()) return null
         return try {
-            val instant = java.time.Instant.parse(created)
-            MusicUtil.getDateModifiedString(instant.toEpochMilli())
-        } catch (e: Exception) {
-            try {
-                val zdt = java.time.ZonedDateTime.parse(created)
-                MusicUtil.getDateModifiedString(zdt.toInstant().toEpochMilli())
-            } catch (e2: Exception) {
-                created.substringBefore('T')
+            val normalized = created.replace("Z", "+0000").replace(Regex("([+-]\\d{2}):(\\d{2})$"), "$1$2")
+            val formats = listOf(
+                "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
+                "yyyy-MM-dd'T'HH:mm:ssZ",
+                "yyyy-MM-dd'T'HH:mm:ss",
+                "yyyy-MM-dd"
+            )
+            for (pattern in formats) {
+                try {
+                    val sdf = java.text.SimpleDateFormat(pattern, java.util.Locale.US).apply {
+                        timeZone = java.util.TimeZone.getTimeZone("UTC")
+                    }
+                    val date = sdf.parse(normalized)
+                    if (date != null) {
+                        return MusicUtil.getDateModifiedString(date.time)
+                    }
+                } catch (_: Exception) {
+                }
             }
+            created.substringBefore('T')
+        } catch (_: Exception) {
+            created.substringBefore('T')
         }
     }
 
