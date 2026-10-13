@@ -1,0 +1,155 @@
+From 529f396a3d18eb95120361365d01002bc2d4b173 Mon Sep 17 00:00:00 2001
+From: Zephyr <Zephyr73@users.noreply.github.com>
+Date: Mon, 12 Oct 2026 21:03:44 -0400
+Subject: [PATCH 15/15] feat: use flat AMOLED list design for About section
+ matching Metro
+
+---
+ .../fragments/about/AboutFragment.kt          |  8 ++---
+ .../layout-xlarge/fragment_about_content.xml  | 34 ++++++++++++++++--
+ .../res/layout/fragment_about_content.xml     | 35 +++++++++++++++++--
+ app/src/main/res/values/strings.xml           |  2 +-
+ 4 files changed, 68 insertions(+), 11 deletions(-)
+
+diff --git a/app/src/main/java/code/name/monkey/retromusic/fragments/about/AboutFragment.kt b/app/src/main/java/code/name/monkey/retromusic/fragments/about/AboutFragment.kt
+index bebce6c6d..a0cb3d250 100644
+--- a/app/src/main/java/code/name/monkey/retromusic/fragments/about/AboutFragment.kt
++++ b/app/src/main/java/code/name/monkey/retromusic/fragments/about/AboutFragment.kt
+@@ -32,7 +32,7 @@ class AboutFragment : Fragment(R.layout.fragment_about), View.OnClickListener {
+     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+         super.onViewCreated(view, savedInstanceState)
+         _binding = FragmentAboutBinding.bind(view)
+-        binding.aboutContent.cardOther.version.setSummary(getAppVersion())
++        binding.aboutContent.version.setSummary(getAppVersion())
+         setUpView()
+ 
+         binding.aboutContent.root.applyInsetter {
+@@ -43,9 +43,9 @@ class AboutFragment : Fragment(R.layout.fragment_about), View.OnClickListener {
+     }
+ 
+     private fun setUpView() {
+-        binding.aboutContent.cardOther.appGithub.setOnClickListener(this)
+-        binding.aboutContent.cardOther.changelog.setOnClickListener(this)
+-        binding.aboutContent.cardOther.openSource.setOnClickListener(this)
++        binding.aboutContent.appGithub.setOnClickListener(this)
++        binding.aboutContent.changelog.setOnClickListener(this)
++        binding.aboutContent.openSource.setOnClickListener(this)
+     }
+ 
+     override fun onClick(view: View) {
+diff --git a/app/src/main/res/layout-xlarge/fragment_about_content.xml b/app/src/main/res/layout-xlarge/fragment_about_content.xml
+index 64abb94bb..fdcb3821f 100644
+--- a/app/src/main/res/layout-xlarge/fragment_about_content.xml
++++ b/app/src/main/res/layout-xlarge/fragment_about_content.xml
+@@ -1,5 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
++    xmlns:app="http://schemas.android.com/apk/res-auto"
+     android:layout_width="match_parent"
+     android:layout_height="wrap_content"
+     android:orientation="vertical"
+@@ -7,8 +8,35 @@
+     android:paddingTop="8dp"
+     android:paddingBottom="@dimen/mini_player_height">
+ 
+-    <include
+-        android:id="@+id/card_other"
+-        layout="@layout/card_other" />
++    <code.name.monkey.retromusic.views.ListItemView
++        android:id="@+id/version"
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        app:listItemIcon="@drawable/ic_info_outline"
++        app:listItemTitle="@string/version" />
++
++    <code.name.monkey.retromusic.views.ListItemView
++        android:id="@+id/changelog"
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        app:listItemIcon="@drawable/ic_file_edit"
++        app:listItemSummary="@string/changelog_summary"
++        app:listItemTitle="@string/changelog" />
++
++    <code.name.monkey.retromusic.views.ListItemView
++        android:id="@+id/appGithub"
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        app:listItemIcon="@drawable/ic_github_circle"
++        app:listItemSummary="@string/git_hub_summary"
++        app:listItemTitle="@string/git_hub" />
++
++    <code.name.monkey.retromusic.views.ListItemView
++        android:id="@+id/openSource"
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        app:listItemIcon="@drawable/ic_license"
++        app:listItemSummary="@string/pref_summary_open_source_licences"
++        app:listItemTitle="@string/pref_title_open_source_licences" />
+ 
+ </LinearLayout>
+\ No newline at end of file
+diff --git a/app/src/main/res/layout/fragment_about_content.xml b/app/src/main/res/layout/fragment_about_content.xml
+index 99713fb4b..d2d1d76b4 100644
+--- a/app/src/main/res/layout/fragment_about_content.xml
++++ b/app/src/main/res/layout/fragment_about_content.xml
+@@ -1,11 +1,40 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
++    xmlns:app="http://schemas.android.com/apk/res-auto"
+     android:layout_width="match_parent"
+     android:layout_height="wrap_content"
+     android:orientation="vertical"
+     android:paddingBottom="@dimen/mini_player_height">
+ 
+-    <include
+-        android:id="@+id/card_other"
+-        layout="@layout/card_other" />
++    <code.name.monkey.retromusic.views.ListItemView
++        android:id="@+id/version"
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        app:listItemIcon="@drawable/ic_info_outline"
++        app:listItemTitle="@string/version" />
++
++    <code.name.monkey.retromusic.views.ListItemView
++        android:id="@+id/changelog"
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        app:listItemIcon="@drawable/ic_file_edit"
++        app:listItemSummary="@string/changelog_summary"
++        app:listItemTitle="@string/changelog" />
++
++    <code.name.monkey.retromusic.views.ListItemView
++        android:id="@+id/appGithub"
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        app:listItemIcon="@drawable/ic_github_circle"
++        app:listItemSummary="@string/git_hub_summary"
++        app:listItemTitle="@string/git_hub" />
++
++    <code.name.monkey.retromusic.views.ListItemView
++        android:id="@+id/openSource"
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        app:listItemIcon="@drawable/ic_license"
++        app:listItemSummary="@string/pref_summary_open_source_licences"
++        app:listItemTitle="@string/pref_title_open_source_licences" />
++
+ </LinearLayout>
+\ No newline at end of file
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 2548284d6..74d562544 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -1,7 +1,7 @@
+ <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+ <resources>
+     <string name="about_album_label">About %s</string>
+-    <string name="about_settings_summary">Team, social links</string>
++    <string name="about_settings_summary">Version, changelog, licenses</string>
+     <string name="accent_color">Accent color</string>
+     <string name="accent_color_desc">The theme accent color, defaults to purple</string>
+     <string name="action_about">About</string>
+-- 
+2.45.2.windows.1
+
