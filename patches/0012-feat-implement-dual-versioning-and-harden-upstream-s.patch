@@ -1,0 +1,627 @@
+From edaedddb64fc0f839498a80a3b7c7727e7f29471 Mon Sep 17 00:00:00 2001
+From: Zephyr <Zephyr73@users.noreply.github.com>
+Date: Mon, 12 Oct 2026 21:36:14 -0400
+Subject: [PATCH 12/12] feat: implement dual versioning and harden upstream
+ sync and release automation
+
+---
+ .github/workflows/release.yml                 | 15 +++-
+ .github/workflows/upstream-sync-and-build.yml |  9 +-
+ README.md                                     | 34 +++++---
+ app/build.gradle.kts                          |  8 +-
+ .../fragments/about/AboutFragment.kt          |  7 +-
+ scripts/apply-patches.ps1                     | 30 +++----
+ scripts/apply-patches.sh                      | 28 +++---
+ scripts/build-patched-apk.ps1                 | 36 ++++++--
+ scripts/build-patched-apk.sh                  | 22 +++--
+ scripts/export-patches.ps1                    |  4 +-
+ scripts/export-patches.sh                     |  8 +-
+ scripts/sync-upstream.ps1                     | 85 +++++++++++++++++++
+ scripts/sync-upstream.sh                      | 81 ++++++++++++++++++
+ 13 files changed, 297 insertions(+), 70 deletions(-)
+ create mode 100644 scripts/sync-upstream.ps1
+ create mode 100644 scripts/sync-upstream.sh
+
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+index b720d6186..837b85a80 100644
+--- a/.github/workflows/release.yml
++++ b/.github/workflows/release.yml
+@@ -3,6 +3,15 @@ name: GitHub Release CI
+ on:
+   push:
+     tags: [ '*' ]
++  workflow_dispatch:
++    inputs:
++      tag_name:
++        description: 'Release tag (e.g. v1.0.0)'
++        required: false
++        default: ''
++
++permissions:
++  contents: write
+ 
+ env:
+   SIGNING_KEYSTORE_GITHUB: ${{ secrets.SIGNING_KEYSTORE_GITHUB }}
+@@ -19,12 +28,16 @@ jobs:
+           java-version: 21
+       - uses: gradle/actions/setup-gradle@v4
+       - name: Setup Signing
+-        run: ./ci_signing_setup.sh
++        run: |
++          chmod +x ./ci_signing_setup.sh
++          ./ci_signing_setup.sh
+       - name: Build
+         run: ./gradlew :app:assembleFdroidRelease
+       - name: Github Release
+         uses: softprops/action-gh-release@v2
+         with:
++          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
++          name: ${{ github.event.inputs.tag_name || github.ref_name }}
+           generate_release_notes: true
+           files: |
+             app/build/outputs/apk/fdroid/release/app-fdroid-release.apk
+diff --git a/.github/workflows/upstream-sync-and-build.yml b/.github/workflows/upstream-sync-and-build.yml
+index 1c13485d4..beb91271d 100644
+--- a/.github/workflows/upstream-sync-and-build.yml
++++ b/.github/workflows/upstream-sync-and-build.yml
+@@ -40,14 +40,19 @@ jobs:
+       - name: Apply RetroDrome Patches onto Upstream
+         run: |
+           UPSTREAM_REF="${{ github.event.inputs.upstream_ref || 'dev' }}"
++          echo "Preserving patches in temporary storage..."
++          TEMP_PATCH_DIR="$(mktemp -d)"
++          cp -r patches/* "${TEMP_PATCH_DIR}/"
++
+           echo "Checking out clean upstream: upstream/${UPSTREAM_REF}"
+           git checkout "upstream/${UPSTREAM_REF}"
+           
+           echo "Validating and applying patches..."
+-          for patch in patches/*.patch; do
+-            echo "Applying $patch..."
++          for patch in "${TEMP_PATCH_DIR}"/*.patch; do
++            echo "Applying $(basename "$patch")..."
+             git apply "$patch"
+           done
++          rm -rf "${TEMP_PATCH_DIR}"
+ 
+       - name: Build Degoogled F-Droid Release APK
+         run: ./gradlew :app:assembleFdroidRelease
+diff --git a/README.md b/README.md
+index 869d504b0..ff0fd556c 100644
+--- a/README.md
++++ b/README.md
+@@ -99,27 +99,39 @@ RetroDrome targets Java 21 and the pure F-Droid build flavor:
+ ./gradlew :app:assembleFdroidRelease
+ ```
+ 
+-### Keeping Up With Upstream RetroMusic
++### Versioning Scheme
+ 
+-RetroDrome uses automated patch management to keep your fork up to date with upstream RetroMusic:
++RetroDrome follows an explicit **dual versioning system**:
++- **RetroDrome Version**: Tracks feature releases and fixes specific to RetroDrome (e.g. `1.0.0`).
++- **Upstream Retro Version**: Identifies the base upstream release (e.g. `7.0.3`).
++- **Display Format**: `Version 1.0.0 (based on 7.0.3)`.
+ 
+-```bash
+-# On Linux / macOS / Git Bash:
+-./scripts/sync-upstream.sh
++### Automation & Upstream Sync Workflow
+ 
+-# On Windows PowerShell:
+-.\scripts\sync-upstream.ps1
+-```
++RetroDrome includes automated scripts and GitHub Actions pipelines to pull upstream Retro bugfixes, validate patches, and create releases:
+ 
+-To validate or re-apply patches manually:
+ ```bash
+-# Apply patch series:
++# Fetch latest upstream Retro bugfixes and test patch compatibility:
++.\scripts\sync-upstream.ps1           # Windows PowerShell
++./scripts/sync-upstream.sh             # Linux / macOS
++
++# Build a clean F-Droid APK directly on top of upstream with patches applied:
++.\scripts\build-patched-apk.ps1 -BuildType Release
++./scripts/build-patched-apk.sh upstream/dev Release
++
++# Validate or re-apply patches on a clean tree:
+ .\scripts\apply-patches.ps1
++./scripts/apply-patches.sh
+ 
+-# Export new commits to patches/:
++# Export newly created feature commits to patches/:
+ .\scripts\export-patches.ps1
++./scripts/export-patches.sh
+ ```
+ 
++### GitHub Actions Automation
++- **`upstream-sync-and-build.yml`**: Automatically checks out upstream Retro weekly (or on demand), applies all RetroDrome patches, builds the release APK, and uploads it as an artifact.
++- **`release.yml`**: Automatically triggered on tag push (or manual dispatch), builds the release APK, signs it, and publishes a GitHub Release with the APK attached.
++
+ ___
+ 
+ ## 🗂️ License & Credits
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index 84566165b..7dd4a1efb 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -20,9 +20,15 @@ android {
+             useSupportLibrary = true
+         }
+ 
++        val retrodromeVersion = "1.0.0"
++        val upstreamRetroVersion = "7.0.3"
++
+         applicationId = namespace
+         versionCode = 10703
+-        versionName = "7.0.3"
++        versionName = "$retrodromeVersion (based on $upstreamRetroVersion)"
++
++        buildConfigField("String", "RETRODROME_VERSION", "\"$retrodromeVersion\"")
++        buildConfigField("String", "UPSTREAM_RETRO_VERSION", "\"$upstreamRetroVersion\"")
+     }
+     val signingProperties = getProperties("retro.properties")
+     val theSigningConfig = if (signingProperties != null) {
+diff --git a/app/src/main/java/code/name/monkey/retromusic/fragments/about/AboutFragment.kt b/app/src/main/java/code/name/monkey/retromusic/fragments/about/AboutFragment.kt
+index a0cb3d250..3edd077e1 100644
+--- a/app/src/main/java/code/name/monkey/retromusic/fragments/about/AboutFragment.kt
++++ b/app/src/main/java/code/name/monkey/retromusic/fragments/about/AboutFragment.kt
+@@ -18,6 +18,7 @@ import android.content.pm.PackageManager
+ import android.os.Bundle
+ import android.view.View
+ import androidx.fragment.app.Fragment
++import code.name.monkey.retromusic.BuildConfig
+ import code.name.monkey.retromusic.Constants
+ import code.name.monkey.retromusic.R
+ import code.name.monkey.retromusic.databinding.FragmentAboutBinding
+@@ -57,13 +58,15 @@ class AboutFragment : Fragment(R.layout.fragment_about), View.OnClickListener {
+     }
+ 
+     private fun getAppVersion(): String {
++        val fallbackVersion =
++            "${BuildConfig.RETRODROME_VERSION} (based on ${BuildConfig.UPSTREAM_RETRO_VERSION})"
+         return try {
+             val packageInfo =
+                 requireActivity().packageManager.getPackageInfo(requireActivity().packageName, 0)
+-            packageInfo.versionName ?: "0.0.0"
++            packageInfo.versionName ?: fallbackVersion
+         } catch (e: PackageManager.NameNotFoundException) {
+             e.printStackTrace()
+-            "0.0.0"
++            fallbackVersion
+         }
+     }
+ 
+diff --git a/scripts/apply-patches.ps1 b/scripts/apply-patches.ps1
+index 22780cced..cf9c0709c 100644
+--- a/scripts/apply-patches.ps1
++++ b/scripts/apply-patches.ps1
+@@ -1,4 +1,8 @@
+ # RetroDrome - Apply Patch Layer onto Upstream RetroMusic (PowerShell)
++param (
++    [switch]$CheckOnly
++)
++
+ $ErrorActionPreference = "Stop"
+ 
+ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+@@ -13,32 +17,22 @@ if ($patches.Count -eq 0) {
+     exit 1
+ }
+ 
+-# Check if all patches are already applied
+-$allAlreadyApplied = $true
++Write-Host "==> Validating $($patches.Count) patches against current tree..." -ForegroundColor Cyan
+ foreach ($patch in $patches) {
+-    git apply --check --reverse $patch.FullName 2>$null
++    Write-Host "  -> Checking $($patch.Name)..."
++    git apply --check $patch.FullName
+     if ($LASTEXITCODE -ne 0) {
+-        $allAlreadyApplied = $false
+-        break
++        Write-Error "Validation failed for $($patch.Name). Make sure working tree is on clean compatible upstream commit."
++        exit $LASTEXITCODE
+     }
+ }
+ 
+-if ($allAlreadyApplied) {
+-    Write-Host "==> All RetroDrome patches are already applied to the current tree." -ForegroundColor Yellow
++if ($CheckOnly) {
++    Write-Host "==> All patches validated successfully (check-only mode)." -ForegroundColor Green
+     exit 0
+ }
+ 
+-Write-Host "==> Checking patches against current working tree..." -ForegroundColor Cyan
+-foreach ($patch in $patches) {
+-    Write-Host "  -> Validating $($patch.Name)..."
+-    git apply --check $patch.FullName
+-    if ($LASTEXITCODE -ne 0) {
+-        Write-Error "Validation failed for $($patch.Name). Make sure you are on a clean upstream commit."
+-        exit $LASTEXITCODE
+-    }
+-}
+-
+-Write-Host "==> Applying patches..." -ForegroundColor Cyan
++Write-Host "==> Applying $($patches.Count) patches..." -ForegroundColor Cyan
+ foreach ($patch in $patches) {
+     Write-Host "  -> Applying $($patch.Name)..."
+     git apply $patch.FullName
+diff --git a/scripts/apply-patches.sh b/scripts/apply-patches.sh
+index d5910170d..55903bc14 100644
+--- a/scripts/apply-patches.sh
++++ b/scripts/apply-patches.sh
+@@ -8,33 +8,27 @@ PATCH_DIR="${ROOT_DIR}/patches"
+ 
+ cd "${ROOT_DIR}"
+ 
+-if [ ! -d "${PATCH_DIR}" ] || [ -z "$(ls -A "${PATCH_DIR}"/*.patch 2>/dev/null)" ]; then
++CHECK_ONLY="${1:-}"
++
++PATCHES=("${PATCH_DIR}"/*.patch)
++if [ ! -f "${PATCHES[0]}" ]; then
+     echo "Error: No patch files found in ${PATCH_DIR}"
+     exit 1
+ fi
+ 
+-# Check if all patches are already applied
+-ALL_APPLIED=true
+-for patch in "${PATCH_DIR}"/*.patch; do
+-    if ! git apply --check --reverse "${patch}" 2>/dev/null; then
+-        ALL_APPLIED=false
+-        break
+-    fi
++echo "==> Validating patches against current tree..."
++for patch in "${PATCHES[@]}"; do
++    echo "  -> Checking $(basename "${patch}")..."
++    git apply --check "${patch}"
+ done
+ 
+-if [ "$ALL_APPLIED" = true ]; then
+-    echo "==> All RetroDrome patches are already applied to the current tree."
++if [ "${CHECK_ONLY}" = "--check-only" ]; then
++    echo "==> All patches validated successfully (check-only mode)."
+     exit 0
+ fi
+ 
+-echo "==> Checking patches against current working tree..."
+-for patch in "${PATCH_DIR}"/*.patch; do
+-    echo "  -> Validating $(basename "${patch}")..."
+-    git apply --check "${patch}"
+-done
+-
+ echo "==> Applying patches..."
+-for patch in "${PATCH_DIR}"/*.patch; do
++for patch in "${PATCHES[@]}"; do
+     echo "  -> Applying $(basename "${patch}")..."
+     git apply "${patch}"
+ done
+diff --git a/scripts/build-patched-apk.ps1 b/scripts/build-patched-apk.ps1
+index 0f6c7800a..d94352519 100644
+--- a/scripts/build-patched-apk.ps1
++++ b/scripts/build-patched-apk.ps1
+@@ -12,23 +12,40 @@ $patchDir = Join-Path $rootDir "patches"
+ 
+ Set-Location $rootDir
+ 
+-Write-Host "==> Preparing clean build branch from $BaseRef..." -ForegroundColor Cyan
+-git fetch upstream 2>&1 | Out-Null
++$status = git status --porcelain
++if ($status) {
++    Write-Error "Working directory has uncommitted changes. Please commit or stash before running this build script."
++    exit 1
++}
+ 
++$patches = Get-ChildItem -Path $patchDir -Filter "*.patch" | Sort-Object Name
++if ($patches.Count -eq 0) {
++    Write-Error "No patch files found in $patchDir"
++    exit 1
++}
++
++Write-Host "==> Staging $($patches.Count) patches into temporary storage..." -ForegroundColor Cyan
+ $timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+-$buildBranch = "retrodrome-build-temp-$timestamp"
++$tempPatchDir = Join-Path ([System.IO.Path]::GetTempPath()) "retrodrome-patches-$timestamp"
++New-Item -ItemType Directory -Force -Path $tempPatchDir | Out-Null
++Copy-Item (Join-Path $patchDir "*.patch") -Destination $tempPatchDir
+ 
++Write-Host "==> Fetching upstream..." -ForegroundColor Cyan
++git fetch upstream 2>&1 | Out-Null
++
++$buildBranch = "retrodrome-build-temp-$timestamp"
+ $currentBranch = (git branch --show-current).Trim()
+ 
+ try {
+-    git checkout --quiet -b $buildBranch $BaseRef 2>&1 | Out-Null
++    Write-Host "==> Checking out clean base: $BaseRef..." -ForegroundColor Cyan
++    git checkout --quiet -b $buildBranch $BaseRef
+     if ($LASTEXITCODE -ne 0) {
+         throw "Failed to checkout base ref $BaseRef"
+     }
+ 
+-    $patches = Get-ChildItem -Path $patchDir -Filter "*.patch" | Sort-Object Name
+-    Write-Host "==> Applying RetroDrome patches..." -ForegroundColor Cyan
+-    foreach ($patch in $patches) {
++    $stagedPatches = Get-ChildItem -Path $tempPatchDir -Filter "*.patch" | Sort-Object Name
++    Write-Host "==> Applying $($stagedPatches.Count) RetroDrome patches..." -ForegroundColor Cyan
++    foreach ($patch in $stagedPatches) {
+         Write-Host "  -> Applying $($patch.Name)..."
+         git apply $patch.FullName
+         if ($LASTEXITCODE -ne 0) {
+@@ -54,7 +71,10 @@ try {
+ finally {
+     Write-Host "==> Cleaning up temporary build branch..." -ForegroundColor Gray
+     git reset --hard 2>&1 | Out-Null
+-    git clean -fd -e patches -e scripts 2>&1 | Out-Null
++    git clean -fd 2>&1 | Out-Null
+     git checkout --quiet $currentBranch 2>&1 | Out-Null
+     git branch -D $buildBranch 2>&1 | Out-Null
++    if (Test-Path $tempPatchDir) {
++        Remove-Item -Recurse -Force $tempPatchDir 2>&1 | Out-Null
++    }
+ }
+diff --git a/scripts/build-patched-apk.sh b/scripts/build-patched-apk.sh
+index f5d41055e..18a53759d 100644
+--- a/scripts/build-patched-apk.sh
++++ b/scripts/build-patched-apk.sh
+@@ -8,26 +8,38 @@ PATCH_DIR="${ROOT_DIR}/patches"
+ 
+ cd "${ROOT_DIR}"
+ 
++if [ -n "$(git status --porcelain)" ]; then
++    echo "Error: Working directory has uncommitted changes. Please commit or stash first."
++    exit 1
++fi
++
+ BASE_REF="${1:-upstream/dev}"
+-BUILD_TYPE="${2:-Release}" # Release or Debug
++BUILD_TYPE="${2:-Debug}" # Debug or Release
++
++echo "==> Staging patches into temporary storage..."
++TEMP_PATCH_DIR="$(mktemp -d)"
++cp -r "${PATCH_DIR}"/*.patch "${TEMP_PATCH_DIR}/"
+ 
+ echo "==> Preparing clean build branch from ${BASE_REF}..."
+ git fetch upstream 2>/dev/null || true
+ 
++CURRENT_BRANCH="$(git branch --show-current)"
+ BUILD_BRANCH="retrodrome-build-temp-$(date +%s)"
+-git checkout -b "${BUILD_BRANCH}" "${BASE_REF}"
+ 
+ cleanup() {
+     echo "==> Cleaning up temporary build branch..."
+     git reset --hard 2>/dev/null || true
+-    git clean -fd -e patches -e scripts 2>/dev/null || true
+-    git checkout - 2>/dev/null || true
++    git clean -fd 2>/dev/null || true
++    git checkout "${CURRENT_BRANCH}" 2>/dev/null || true
+     git branch -D "${BUILD_BRANCH}" 2>/dev/null || true
++    rm -rf "${TEMP_PATCH_DIR}" 2>/dev/null || true
+ }
+ trap cleanup EXIT
+ 
++git checkout -b "${BUILD_BRANCH}" "${BASE_REF}"
++
+ echo "==> Applying RetroDrome patches..."
+-for patch in "${PATCH_DIR}"/*.patch; do
++for patch in "${TEMP_PATCH_DIR}"/*.patch; do
+     echo "  -> Applying $(basename "${patch}")..."
+     git apply "${patch}"
+ done
+diff --git a/scripts/export-patches.ps1 b/scripts/export-patches.ps1
+index 3c2f341d7..1c3dd84fa 100644
+--- a/scripts/export-patches.ps1
++++ b/scripts/export-patches.ps1
+@@ -11,11 +11,11 @@ $patchDir = Join-Path $rootDir "patches"
+ 
+ Set-Location $rootDir
+ 
+-Write-Host "==> Exporting commits on top of $BaseRef to $patchDir..." -ForegroundColor Cyan
++Write-Host "==> Exporting feature commits on top of $BaseRef to $patchDir..." -ForegroundColor Cyan
+ 
+ Get-ChildItem -Path $patchDir -Filter "*.patch" -ErrorAction SilentlyContinue | Remove-Item -Force
+ 
+-git format-patch -o $patchDir "$BaseRef..HEAD"
++git format-patch -o $patchDir "$BaseRef..HEAD" -- . ':!patches'
+ if ($LASTEXITCODE -ne 0) {
+     Write-Error "Failed to export patches from $BaseRef"
+     exit $LASTEXITCODE
+diff --git a/scripts/export-patches.sh b/scripts/export-patches.sh
+index a0806816e..0c789d9d7 100644
+--- a/scripts/export-patches.sh
++++ b/scripts/export-patches.sh
+@@ -10,9 +10,11 @@ cd "${ROOT_DIR}"
+ 
+ BASE_REF="${1:-upstream/dev}"
+ 
+-echo "==> Exporting commits on top of ${BASE_REF} to ${PATCH_DIR}..."
++echo "==> Exporting feature commits on top of ${BASE_REF} to ${PATCH_DIR}..."
++
+ rm -f "${PATCH_DIR}"/*.patch
+-git format-patch -o "${PATCH_DIR}" "${BASE_REF}..HEAD"
++
++git format-patch -o "${PATCH_DIR}" "${BASE_REF}..HEAD" -- . ':!patches'
+ 
+ echo "==> Patches exported successfully:"
+-ls -l "${PATCH_DIR}"/*.patch
++ls -lh "${PATCH_DIR}"/*.patch
+diff --git a/scripts/sync-upstream.ps1 b/scripts/sync-upstream.ps1
+new file mode 100644
+index 000000000..40e4e31dd
+--- /dev/null
++++ b/scripts/sync-upstream.ps1
+@@ -0,0 +1,85 @@
++# RetroDrome - Sync & Validate Upstream RetroMusic Bugfixes (PowerShell)
++param (
++    [string]$UpstreamBranch = "dev",
++    [switch]$Rebase
++)
++
++$ErrorActionPreference = "Stop"
++
++$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
++$rootDir = Split-Path -Parent $scriptDir
++$patchDir = Join-Path $rootDir "patches"
++
++Set-Location $rootDir
++
++Write-Host "==> Checking git remotes..." -ForegroundColor Cyan
++$remotes = git remote
++if ($remotes -notcontains "upstream") {
++    Write-Host "  -> Adding upstream remote (RetroMusicPlayer/RetroMusicPlayer)..." -ForegroundColor Yellow
++    git remote add upstream https://github.com/RetroMusicPlayer/RetroMusicPlayer.git
++}
++
++Write-Host "==> Fetching latest changes from upstream..." -ForegroundColor Cyan
++git fetch upstream
++
++$upstreamRef = "upstream/$UpstreamBranch"
++$baseRef = (git merge-base HEAD $upstreamRef).Trim()
++$upstreamHead = (git rev-parse $upstreamRef).Trim()
++
++if ($baseRef -eq $upstreamHead) {
++    Write-Host "==> Up to date! Current branch already includes all commits from $upstreamRef." -ForegroundColor Green
++    exit 0
++}
++
++$newCommitCount = (git rev-list --count "$baseRef..$upstreamRef").Trim()
++Write-Host "==> Found $newCommitCount new commit(s) / bugfix(es) in ${upstreamRef}:" -ForegroundColor Yellow
++git log --oneline -n 10 "$baseRef..$upstreamRef"
++
++Write-Host "==> Testing whether RetroDrome patches apply cleanly on top of newest $upstreamRef..." -ForegroundColor Cyan
++$timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
++$tempPatchDir = Join-Path ([System.IO.Path]::GetTempPath()) "retrodrome-sync-patches-$timestamp"
++New-Item -ItemType Directory -Force -Path $tempPatchDir | Out-Null
++Copy-Item (Join-Path $patchDir "*.patch") -Destination $tempPatchDir
++
++$testBranch = "retrodrome-sync-test-$timestamp"
++$currentBranch = (git branch --show-current).Trim()
++
++try {
++    git checkout --quiet -b $testBranch $upstreamRef
++    $stagedPatches = Get-ChildItem -Path $tempPatchDir -Filter "*.patch" | Sort-Object Name
++    $allClean = $true
++    foreach ($patch in $stagedPatches) {
++        git apply --check $patch.FullName 2>&1 | Out-Null
++        if ($LASTEXITCODE -ne 0) {
++            Write-Host "  [CONFLICT] $($patch.Name) does not apply cleanly to $upstreamRef." -ForegroundColor Red
++            $allClean = $false
++        } else {
++            git apply $patch.FullName
++            Write-Host "  [OK] $($patch.Name) applies cleanly." -ForegroundColor Green
++        }
++    }
++
++    if ($allClean) {
++        Write-Host "==> SUCCESS: All RetroDrome patches apply cleanly on top of newest $upstreamRef!" -ForegroundColor Green
++    } else {
++        Write-Host "==> WARNING: Some patches require conflict resolution on newest $upstreamRef." -ForegroundColor Yellow
++    }
++}
++finally {
++    git reset --hard 2>&1 | Out-Null
++    git clean -fd 2>&1 | Out-Null
++    git checkout --quiet $currentBranch 2>&1 | Out-Null
++    git branch -D $testBranch 2>&1 | Out-Null
++    if (Test-Path $tempPatchDir) {
++        Remove-Item -Recurse -Force $tempPatchDir 2>&1 | Out-Null
++    }
++}
++
++if ($Rebase -and $allClean) {
++    Write-Host "==> Rebasing current branch '$currentBranch' onto $upstreamRef..." -ForegroundColor Cyan
++    git rebase $upstreamRef
++    Write-Host "==> Rebase completed successfully!" -ForegroundColor Green
++} elseif (-not $Rebase) {
++    Write-Host "==> To automatically rebase your branch on top of these upstream commits, run:" -ForegroundColor Cyan
++    Write-Host "    .\scripts\sync-upstream.ps1 -Rebase" -ForegroundColor Gray
++}
+diff --git a/scripts/sync-upstream.sh b/scripts/sync-upstream.sh
+new file mode 100644
+index 000000000..1d17788f3
+--- /dev/null
++++ b/scripts/sync-upstream.sh
+@@ -0,0 +1,81 @@
++#!/usr/bin/env bash
++# RetroDrome - Sync & Validate Upstream RetroMusic Bugfixes
++set -euo pipefail
++
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
++PATCH_DIR="${ROOT_DIR}/patches"
++
++cd "${ROOT_DIR}"
++
++UPSTREAM_BRANCH="${1:-dev}"
++DO_REBASE="${2:-}"
++
++echo "==> Checking git remotes..."
++if ! git remote | grep -q "^upstream$"; then
++    echo "  -> Adding upstream remote (RetroMusicPlayer/RetroMusicPlayer)..."
++    git remote add upstream https://github.com/RetroMusicPlayer/RetroMusicPlayer.git
++fi
++
++echo "==> Fetching latest changes from upstream..."
++git fetch upstream
++
++UPSTREAM_REF="upstream/${UPSTREAM_BRANCH}"
++BASE_REF="$(git merge-base HEAD "${UPSTREAM_REF}")"
++UPSTREAM_HEAD="$(git rev-parse "${UPSTREAM_REF}")"
++
++if [ "${BASE_REF}" = "${UPSTREAM_HEAD}" ]; then
++    echo "==> Up to date! Current branch already includes all commits from ${UPSTREAM_REF}."
++    exit 0
++fi
++
++NEW_COMMITS="$(git rev-list --count "${BASE_REF}..${UPSTREAM_REF}")"
++echo "==> Found ${NEW_COMMITS} new commit(s) / bugfix(es) in ${UPSTREAM_REF}:"
++git log --oneline -n 10 "${BASE_REF}..${UPSTREAM_REF}"
++
++echo "==> Testing whether RetroDrome patches apply cleanly on top of newest ${UPSTREAM_REF}..."
++TEMP_PATCH_DIR="$(mktemp -d)"
++cp -r "${PATCH_DIR}"/*.patch "${TEMP_PATCH_DIR}/"
++
++CURRENT_BRANCH="$(git branch --show-current)"
++TEST_BRANCH="retrodrome-sync-test-$(date +%s)"
++
++cleanup() {
++    git reset --hard 2>/dev/null || true
++    git clean -fd 2>/dev/null || true
++    git checkout "${CURRENT_BRANCH}" 2>/dev/null || true
++    git branch -D "${TEST_BRANCH}" 2>/dev/null || true
++    rm -rf "${TEMP_PATCH_DIR}" 2>/dev/null || true
++}
++trap cleanup EXIT
++
++git checkout -b "${TEST_BRANCH}" "${UPSTREAM_REF}"
++
++ALL_CLEAN=true
++for patch in "${TEMP_PATCH_DIR}"/*.patch; do
++    if git apply --check "${patch}" 2>/dev/null; then
++        git apply "${patch}"
++        echo "  [OK] $(basename "${patch}") applies cleanly."
++    else
++        echo "  [CONFLICT] $(basename "${patch}") does not apply cleanly to ${UPSTREAM_REF}."
++        ALL_CLEAN=false
++    fi
++done
++
++if [ "${ALL_CLEAN}" = true ]; then
++    echo "==> SUCCESS: All RetroDrome patches apply cleanly on top of newest ${UPSTREAM_REF}!"
++else
++    echo "==> WARNING: Some patches require conflict resolution on newest ${UPSTREAM_REF}."
++fi
++
++trap - EXIT
++cleanup
++
++if [ "${DO_REBASE}" = "--rebase" ] && [ "${ALL_CLEAN}" = true ]; then
++    echo "==> Rebasing current branch '${CURRENT_BRANCH}' onto ${UPSTREAM_REF}..."
++    git rebase "${UPSTREAM_REF}"
++    echo "==> Rebase completed successfully!"
++elif [ "${DO_REBASE}" != "--rebase" ]; then
++    echo "==> To automatically rebase your branch on top of these upstream commits, run:"
++    echo "    ./scripts/sync-upstream.sh ${UPSTREAM_BRANCH} --rebase"
++fi
+-- 
+2.45.2.windows.1
+

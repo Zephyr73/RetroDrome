@@ -1,7 +1,7 @@
 From fb387e84719ac14f38432d6d756d96ade3dc8669 Mon Sep 17 00:00:00 2001
 From: Zephyr <Zephyr73@users.noreply.github.com>
 Date: Mon, 12 Oct 2026 18:14:19 -0400
-Subject: [PATCH 05/15] feat: integrate Navidrome UI settings, artwork loading,
+Subject: [PATCH 05/12] feat: integrate Navidrome UI settings, artwork loading,
  playback, and metadata dialogs
 
 ---
