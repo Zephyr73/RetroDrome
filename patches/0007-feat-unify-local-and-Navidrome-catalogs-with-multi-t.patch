@@ -1,7 +1,7 @@
 From 747203429c20d80a60958db3dc499f2a5cd022b1 Mon Sep 17 00:00:00 2001
 From: Zephyr <Zephyr73@users.noreply.github.com>
 Date: Mon, 12 Oct 2026 20:10:53 -0400
-Subject: [PATCH 07/11] feat: unify local and Navidrome catalogs with
+Subject: [PATCH 07/13] feat: unify local and Navidrome catalogs with
  multi-tier ID resolution and cover art fallback
 
 ---

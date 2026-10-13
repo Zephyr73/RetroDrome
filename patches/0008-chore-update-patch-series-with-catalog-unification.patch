@@ -1,7 +1,7 @@
 From cc4f54bfec3617619f483de20fff815ffd161e69 Mon Sep 17 00:00:00 2001
 From: Zephyr <Zephyr73@users.noreply.github.com>
 Date: Mon, 12 Oct 2026 20:11:19 -0400
-Subject: [PATCH 08/11] chore: update patch series with catalog unification
+Subject: [PATCH 08/13] chore: update patch series with catalog unification
 
 ---
  ...ure-F-Droid-build-and-strip-Google-P.patch |    2 +-

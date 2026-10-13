@@ -1,0 +1,316 @@
+From 4ce5f69b3bcd8b21c725c785584e40353620d52d Mon Sep 17 00:00:00 2001
+From: Zephyr <Zephyr73@users.noreply.github.com>
+Date: Mon, 12 Oct 2026 20:52:44 -0400
+Subject: [PATCH 13/13] feat: simplify About section to version, GitHub,
+ changelog, and licenses
+
+---
+ .../code/name/monkey/retromusic/Constants.kt  |  2 +-
+ .../fragments/about/AboutFragment.kt          | 57 +------------------
+ .../layout-xlarge/fragment_about_content.xml  | 46 +++------------
+ app/src/main/res/layout/card_other.xml        | 43 +++++++-------
+ .../res/layout/fragment_about_content.xml     | 13 -----
+ 5 files changed, 29 insertions(+), 132 deletions(-)
+
+diff --git a/app/src/main/java/code/name/monkey/retromusic/Constants.kt b/app/src/main/java/code/name/monkey/retromusic/Constants.kt
+index 421557a2b..a5efc664a 100644
+--- a/app/src/main/java/code/name/monkey/retromusic/Constants.kt
++++ b/app/src/main/java/code/name/monkey/retromusic/Constants.kt
+@@ -22,7 +22,7 @@ object Constants {
+         "https://play.google.com/store/apps/details?id=code.name.monkey.retromusic"
+     const val TRANSLATE = "https://crowdin.com/project/retromusicplayer"
+     const val WEBSITE = "https://retromusic.app"
+-    const val GITHUB_PROJECT = "https://github.com/RetroMusicPlayer/RetroMusicPlayer"
++    const val GITHUB_PROJECT = "https://github.com/Zephyr73/RetroDrome"
+     const val TELEGRAM_CHANGE_LOG = "https://t.me/retromusiclog"
+     const val USER_PROFILE = "profile.jpg"
+     const val USER_BANNER = "banner.jpg"
+diff --git a/app/src/main/java/code/name/monkey/retromusic/fragments/about/AboutFragment.kt b/app/src/main/java/code/name/monkey/retromusic/fragments/about/AboutFragment.kt
+index 3e79d2669..bebce6c6d 100644
+--- a/app/src/main/java/code/name/monkey/retromusic/fragments/about/AboutFragment.kt
++++ b/app/src/main/java/code/name/monkey/retromusic/fragments/about/AboutFragment.kt
+@@ -17,31 +17,23 @@ package code.name.monkey.retromusic.fragments.about
+ import android.content.pm.PackageManager
+ import android.os.Bundle
+ import android.view.View
+-import androidx.core.app.ShareCompat
+ import androidx.fragment.app.Fragment
+-import androidx.recyclerview.widget.DefaultItemAnimator
+-import androidx.recyclerview.widget.LinearLayoutManager
+ import code.name.monkey.retromusic.Constants
+ import code.name.monkey.retromusic.R
+-import code.name.monkey.retromusic.adapter.ContributorAdapter
+ import code.name.monkey.retromusic.databinding.FragmentAboutBinding
+ import code.name.monkey.retromusic.extensions.openUrl
+-import code.name.monkey.retromusic.fragments.LibraryViewModel
+ import code.name.monkey.retromusic.util.NavigationUtil
+ import dev.chrisbanes.insetter.applyInsetter
+-import org.koin.androidx.viewmodel.ext.android.activityViewModel
+ 
+ class AboutFragment : Fragment(R.layout.fragment_about), View.OnClickListener {
+     private var _binding: FragmentAboutBinding? = null
+     private val binding get() = _binding!!
+-    private val libraryViewModel by activityViewModel<LibraryViewModel>()
+ 
+     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+         super.onViewCreated(view, savedInstanceState)
+         _binding = FragmentAboutBinding.bind(view)
+         binding.aboutContent.cardOther.version.setSummary(getAppVersion())
+         setUpView()
+-        loadContributors()
+ 
+         binding.aboutContent.root.applyInsetter {
+             type(navigationBars = true) {
+@@ -51,38 +43,16 @@ class AboutFragment : Fragment(R.layout.fragment_about), View.OnClickListener {
+     }
+ 
+     private fun setUpView() {
+-        binding.aboutContent.cardRetroInfo.appGithub.setOnClickListener(this)
+-        binding.aboutContent.cardRetroInfo.faqLink.setOnClickListener(this)
+-        binding.aboutContent.cardRetroInfo.appRate.setOnClickListener(this)
+-        binding.aboutContent.cardRetroInfo.appTranslation.setOnClickListener(this)
+-        binding.aboutContent.cardRetroInfo.appShare.setOnClickListener(this)
+-        binding.aboutContent.cardRetroInfo.donateLink.setOnClickListener(this)
+-        binding.aboutContent.cardRetroInfo.bugReportLink.setOnClickListener(this)
+-
+-        binding.aboutContent.cardSocial.telegramLink.setOnClickListener(this)
+-        binding.aboutContent.cardSocial.twitterLink.setOnClickListener(this)
+-        binding.aboutContent.cardSocial.pinterestLink.setOnClickListener(this)
+-        binding.aboutContent.cardSocial.websiteLink.setOnClickListener(this)
+-
++        binding.aboutContent.cardOther.appGithub.setOnClickListener(this)
+         binding.aboutContent.cardOther.changelog.setOnClickListener(this)
+         binding.aboutContent.cardOther.openSource.setOnClickListener(this)
+     }
+ 
+     override fun onClick(view: View) {
+         when (view.id) {
+-            R.id.pinterestLink -> openUrl(Constants.PINTEREST)
+-            R.id.faqLink -> openUrl(Constants.FAQ_LINK)
+-            R.id.telegramLink -> openUrl(Constants.APP_TELEGRAM_LINK)
+             R.id.appGithub -> openUrl(Constants.GITHUB_PROJECT)
+-            R.id.appTranslation -> openUrl(Constants.TRANSLATE)
+-            R.id.appRate -> openUrl(Constants.RATE_ON_GOOGLE_PLAY)
+-            R.id.appShare -> shareApp()
+-            R.id.donateLink -> NavigationUtil.goToSupportDevelopment(requireActivity())
+-            R.id.twitterLink -> openUrl(Constants.APP_TWITTER_LINK)
+             R.id.changelog -> NavigationUtil.gotoWhatNews(requireActivity())
+             R.id.openSource -> NavigationUtil.goToOpenSource(requireActivity())
+-            R.id.bugReportLink -> NavigationUtil.bugReport(requireActivity())
+-            R.id.websiteLink -> openUrl(Constants.WEBSITE)
+         }
+     }
+ 
+@@ -97,31 +67,6 @@ class AboutFragment : Fragment(R.layout.fragment_about), View.OnClickListener {
+         }
+     }
+ 
+-    private fun shareApp() {
+-        ShareCompat.IntentBuilder(requireActivity()).setType("text/plain")
+-            .setChooserTitle(R.string.share_app)
+-            .setText(
+-                String.format(
+-                    java.util.Locale.getDefault(),
+-                    getString(R.string.app_share),
+-                    requireActivity().packageName
+-                )
+-            )
+-            .startChooser()
+-    }
+-
+-    private fun loadContributors() {
+-        val contributorAdapter = ContributorAdapter(emptyList())
+-        binding.aboutContent.cardCredit.recyclerView.apply {
+-            layoutManager = LinearLayoutManager(requireContext())
+-            itemAnimator = DefaultItemAnimator()
+-            adapter = contributorAdapter
+-        }
+-        libraryViewModel.fetchContributors().observe(viewLifecycleOwner) { contributors ->
+-            contributorAdapter.swapData(contributors)
+-        }
+-    }
+-
+     override fun onDestroyView() {
+         super.onDestroyView()
+         _binding = null
+diff --git a/app/src/main/res/layout-xlarge/fragment_about_content.xml b/app/src/main/res/layout-xlarge/fragment_about_content.xml
+index abdf72501..64abb94bb 100644
+--- a/app/src/main/res/layout-xlarge/fragment_about_content.xml
++++ b/app/src/main/res/layout-xlarge/fragment_about_content.xml
+@@ -1,46 +1,14 @@
+ <?xml version="1.0" encoding="utf-8"?>
+-<androidx.gridlayout.widget.GridLayout xmlns:android="http://schemas.android.com/apk/res/android"
+-    xmlns:grid="http://schemas.android.com/apk/res-auto"
++<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+     android:layout_width="match_parent"
+     android:layout_height="wrap_content"
++    android:orientation="vertical"
+     android:paddingHorizontal="8dp"
+     android:paddingTop="8dp"
+-    android:paddingBottom="@dimen/mini_player_height"
+-    grid:alignmentMode="alignBounds">
++    android:paddingBottom="@dimen/mini_player_height">
+ 
+-    <LinearLayout
+-        android:layout_width="0dp"
+-        android:layout_height="wrap_content"
+-        android:layout_marginEnd="4dp"
+-        android:orientation="vertical"
+-        grid:layout_column="0"
+-        grid:layout_columnWeight="1"
+-        grid:layout_row="0">
++    <include
++        android:id="@+id/card_other"
++        layout="@layout/card_other" />
+ 
+-        <include
+-            android:id="@+id/card_credit"
+-            layout="@layout/card_credit" />
+-
+-        <include
+-            android:id="@+id/card_social"
+-            layout="@layout/card_social" />
+-    </LinearLayout>
+-
+-    <LinearLayout
+-        android:layout_width="0dp"
+-        android:layout_height="wrap_content"
+-        android:layout_marginStart="4dp"
+-        android:orientation="vertical"
+-        grid:layout_column="1"
+-        grid:layout_columnWeight="1"
+-        grid:layout_row="0">
+-
+-        <include
+-            android:id="@+id/card_retro_info"
+-            layout="@layout/card_retro_info" />
+-
+-        <include
+-            android:id="@+id/card_other"
+-            layout="@layout/card_other" />
+-    </LinearLayout>
+-</androidx.gridlayout.widget.GridLayout>
+\ No newline at end of file
++</LinearLayout>
+\ No newline at end of file
+diff --git a/app/src/main/res/layout/card_other.xml b/app/src/main/res/layout/card_other.xml
+index 987e48307..b1b5cd67d 100644
+--- a/app/src/main/res/layout/card_other.xml
++++ b/app/src/main/res/layout/card_other.xml
+@@ -19,7 +19,7 @@
+             android:paddingTop="?attr/listPreferredItemPaddingStart"
+             android:paddingEnd="?attr/listPreferredItemPaddingEnd"
+             android:paddingBottom="?attr/listPreferredItemPaddingEnd"
+-            android:text="@string/others"
++            android:text="@string/action_about"
+             android:textAppearance="@style/TextViewNormal"
+             android:textColor="?colorAccent"
+             app:layout_constrainedWidth="true"
+@@ -28,9 +28,8 @@
+             app:layout_constraintStart_toStartOf="parent"
+             app:layout_constraintTop_toTopOf="parent" />
+ 
+-
+         <code.name.monkey.retromusic.views.ListItemView
+-            android:id="@+id/changelog"
++            android:id="@+id/version"
+             android:layout_width="0dp"
+             android:layout_height="wrap_content"
+             app:layout_constrainedWidth="true"
+@@ -38,48 +37,46 @@
+             app:layout_constraintHorizontal_bias="0"
+             app:layout_constraintStart_toStartOf="parent"
+             app:layout_constraintTop_toBottomOf="@id/sb4"
+-            app:listItemIcon="@drawable/ic_file_edit"
+-            app:listItemSummary="@string/changelog_summary"
+-            app:listItemTitle="@string/changelog" />
++            app:listItemIcon="@drawable/ic_info_outline"
++            app:listItemTitle="@string/version" />
+ 
+         <code.name.monkey.retromusic.views.ListItemView
+-            android:id="@+id/openSource"
++            android:id="@+id/appGithub"
+             android:layout_width="0dp"
+             android:layout_height="wrap_content"
+             app:layout_constrainedWidth="true"
+             app:layout_constraintEnd_toEndOf="parent"
+             app:layout_constraintHorizontal_bias="0"
+             app:layout_constraintStart_toStartOf="parent"
+-            app:layout_constraintTop_toBottomOf="@id/changelog"
+-            app:listItemIcon="@drawable/ic_license"
+-            app:listItemSummary="@string/pref_summary_open_source_licences"
+-            app:listItemTitle="@string/pref_title_open_source_licences" />
++            app:layout_constraintTop_toBottomOf="@id/version"
++            app:listItemIcon="@drawable/ic_github_circle"
++            app:listItemSummary="@string/git_hub_summary"
++            app:listItemTitle="@string/git_hub" />
+ 
+         <code.name.monkey.retromusic.views.ListItemView
+-            android:id="@+id/version"
++            android:id="@+id/changelog"
+             android:layout_width="0dp"
+             android:layout_height="wrap_content"
+             app:layout_constrainedWidth="true"
+             app:layout_constraintEnd_toEndOf="parent"
+             app:layout_constraintHorizontal_bias="0"
+             app:layout_constraintStart_toStartOf="parent"
+-            app:layout_constraintTop_toBottomOf="@id/openSource"
+-            app:listItemIcon="@drawable/ic_info_outline"
+-            app:listItemSummary="@string/pref_summary_open_source_licences"
+-            app:listItemTitle="@string/version" />
++            app:layout_constraintTop_toBottomOf="@id/appGithub"
++            app:listItemIcon="@drawable/ic_file_edit"
++            app:listItemSummary="@string/changelog_summary"
++            app:listItemTitle="@string/changelog" />
+ 
+-        <com.google.android.material.textview.MaterialTextView
++        <code.name.monkey.retromusic.views.ListItemView
++            android:id="@+id/openSource"
+             android:layout_width="0dp"
+             android:layout_height="wrap_content"
+-            android:layout_gravity="center"
+-            android:gravity="center"
+-            android:padding="16dp"
+-            android:text="@string/made_with_love"
+-            android:textAppearance="@style/TextViewBody1"
+             app:layout_constrainedWidth="true"
+             app:layout_constraintEnd_toEndOf="parent"
+             app:layout_constraintHorizontal_bias="0"
+             app:layout_constraintStart_toStartOf="parent"
+-            app:layout_constraintTop_toBottomOf="@id/version" />
++            app:layout_constraintTop_toBottomOf="@id/changelog"
++            app:listItemIcon="@drawable/ic_license"
++            app:listItemSummary="@string/pref_summary_open_source_licences"
++            app:listItemTitle="@string/pref_title_open_source_licences" />
+     </androidx.constraintlayout.widget.ConstraintLayout>
+ </com.google.android.material.card.MaterialCardView>
+\ No newline at end of file
+diff --git a/app/src/main/res/layout/fragment_about_content.xml b/app/src/main/res/layout/fragment_about_content.xml
+index e3102723c..99713fb4b 100644
+--- a/app/src/main/res/layout/fragment_about_content.xml
++++ b/app/src/main/res/layout/fragment_about_content.xml
+@@ -5,20 +5,7 @@
+     android:orientation="vertical"
+     android:paddingBottom="@dimen/mini_player_height">
+ 
+-    <include
+-        android:id="@+id/card_credit"
+-        layout="@layout/card_credit" />
+-
+-    <include
+-        android:id="@+id/card_retro_info"
+-        layout="@layout/card_retro_info" />
+-
+-    <include
+-        android:id="@+id/card_social"
+-        layout="@layout/card_social" />
+-
+     <include
+         android:id="@+id/card_other"
+         layout="@layout/card_other" />
+-
+ </LinearLayout>
+\ No newline at end of file
+-- 
+2.45.2.windows.1
+

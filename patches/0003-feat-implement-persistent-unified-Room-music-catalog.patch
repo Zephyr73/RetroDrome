@@ -1,7 +1,7 @@
 From 17dd7a205240300c3164853229df95f4f09d8dfa Mon Sep 17 00:00:00 2001
 From: Zephyr <Zephyr73@users.noreply.github.com>
 Date: Mon, 12 Oct 2026 18:13:53 -0400
-Subject: [PATCH 03/11] feat: implement persistent unified Room music catalog
+Subject: [PATCH 03/13] feat: implement persistent unified Room music catalog
  and sync engine
 
 ---
