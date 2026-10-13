@@ -1,0 +1,301 @@
+From a4ddf2b74627c6dd8d7b2593ef73b434417bb2d5 Mon Sep 17 00:00:00 2001
+From: Zephyr <Zephyr73@users.noreply.github.com>
+Date: Mon, 12 Oct 2026 20:32:15 -0400
+Subject: [PATCH 9/9] fix: resolve local MediaStore IDs for seamless local
+ track playback
+
+---
+ .../db/catalog/UnifiedAlbumEntity.kt          |  3 ++
+ .../db/catalog/UnifiedArtistEntity.kt         |  3 ++
+ .../db/catalog/UnifiedSongEntity.kt           |  6 +++-
+ .../retromusic/extensions/SongExtensions.kt   | 24 +++++++++----
+ .../code/name/monkey/retromusic/model/Song.kt | 12 ++++---
+ .../network/subsonic/SubsonicMapper.kt        | 27 ++++++++++++++
+ .../retromusic/repository/Repository.kt       | 36 +++++++++++++++++++
+ .../retromusic/repository/SongRepository.kt   |  3 +-
+ .../name/monkey/retromusic/util/MusicUtil.kt  |  6 ++--
+ 9 files changed, 105 insertions(+), 15 deletions(-)
+
+diff --git a/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedAlbumEntity.kt b/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedAlbumEntity.kt
+index 767981f9b..97fb19ecb 100644
+--- a/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedAlbumEntity.kt
++++ b/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedAlbumEntity.kt
+@@ -62,6 +62,9 @@ data class UnifiedAlbumEntity(
+         if (!subsonicAlbumId.isNullOrBlank()) {
+             code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerMapping(id, subsonicAlbumId)
+         }
++        if (localAlbumId != null && localAlbumId > 0) {
++            code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerLocalAlbumMapping(id, localAlbumId)
++        }
+         return Album(id = id, songs = songs)
+     }
+ 
+diff --git a/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedArtistEntity.kt b/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedArtistEntity.kt
+index 0134d7a62..f664ca026 100644
+--- a/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedArtistEntity.kt
++++ b/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedArtistEntity.kt
+@@ -49,6 +49,9 @@ data class UnifiedArtistEntity(
+         if (!subsonicArtistId.isNullOrBlank()) {
+             code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerMapping(id, subsonicArtistId)
+         }
++        if (localArtistId != null && localArtistId > 0) {
++            code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerLocalArtistMapping(id, localArtistId)
++        }
+         val artist = Artist(id, albums)
+         artist.name = name
+         return artist
+diff --git a/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedSongEntity.kt b/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedSongEntity.kt
+index c4e744ae1..1dae3572d 100644
+--- a/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedSongEntity.kt
++++ b/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedSongEntity.kt
+@@ -85,6 +85,9 @@ data class UnifiedSongEntity(
+         if (!subsonicId.isNullOrBlank()) {
+             code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerMapping(id, subsonicId)
+         }
++        if (localMediaStoreId != null && localMediaStoreId > 0) {
++            code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerLocalMapping(id, localMediaStoreId)
++        }
+ 
+         val streamData = if (!localPath.isNullOrBlank()) {
+             localPath
+@@ -107,7 +110,8 @@ data class UnifiedSongEntity(
+             artistId = artistId,
+             artistName = artistName,
+             composer = composer,
+-            albumArtist = albumArtist
++            albumArtist = albumArtist,
++            localMediaStoreId = localMediaStoreId
+         )
+     }
+ 
+diff --git a/app/src/main/java/code/name/monkey/retromusic/extensions/SongExtensions.kt b/app/src/main/java/code/name/monkey/retromusic/extensions/SongExtensions.kt
+index b50724368..1c3c248a4 100644
+--- a/app/src/main/java/code/name/monkey/retromusic/extensions/SongExtensions.kt
++++ b/app/src/main/java/code/name/monkey/retromusic/extensions/SongExtensions.kt
+@@ -9,17 +9,26 @@ import android.net.Uri
+ import code.name.monkey.retromusic.network.subsonic.SubsonicClientFactory
+ import code.name.monkey.retromusic.network.subsonic.SubsonicMapper
+ 
+-val Song.uri
++val Song.uri: Uri
+     get() = if (data.startsWith("http://") || data.startsWith("https://")) {
+         Uri.parse(data)
+-    } else if (SubsonicMapper.isSubsonicId(id)) {
+-        val subsonicId = SubsonicMapper.toSubsonicId(id) ?: ""
+-        Uri.parse(SubsonicClientFactory.buildStreamUrl(subsonicId))
+     } else {
+-        MusicUtil.getSongFileUri(songId = id)
++        val effectiveLocalId = localMediaStoreId ?: SubsonicMapper.toLocalMediaStoreId(id)
++        if (effectiveLocalId != null && effectiveLocalId > 0 && (data.isBlank() || java.io.File(data).exists())) {
++            MusicUtil.getSongFileUri(songId = effectiveLocalId)
++        } else if (SubsonicMapper.isSubsonicId(id)) {
++            val subsonicId = SubsonicMapper.toSubsonicId(id) ?: ""
++            Uri.parse(SubsonicClientFactory.buildStreamUrl(subsonicId))
++        } else if (effectiveLocalId != null && effectiveLocalId > 0) {
++            MusicUtil.getSongFileUri(songId = effectiveLocalId)
++        } else if (data.isNotBlank() && java.io.File(data).exists()) {
++            Uri.fromFile(java.io.File(data))
++        } else {
++            MusicUtil.getSongFileUri(songId = id)
++        }
+     }
+ 
+-val Song.albumArtUri
++val Song.albumArtUri: Uri
+     get() = if (SubsonicMapper.isSubsonicId(id)) {
+         val subsonicAlbumId = SubsonicMapper.toSubsonicId(albumId)
+             ?: SubsonicMapper.toSubsonicId(id) ?: ""
+@@ -27,7 +36,8 @@ val Song.albumArtUri
+     } else if (MusicUtil.isAlbumNameUnknown(albumName, artistName)) {
+         Uri.EMPTY
+     } else {
+-        MusicUtil.getMediaStoreAlbumCoverUri(albumId)
++        val effectiveAlbumId = SubsonicMapper.toLocalAlbumId(albumId) ?: albumId
++        MusicUtil.getMediaStoreAlbumCoverUri(effectiveAlbumId)
+     }
+ 
+ fun ArrayList<Song>.toMediaSessionQueue(): List<QueueItem> {
+diff --git a/app/src/main/java/code/name/monkey/retromusic/model/Song.kt b/app/src/main/java/code/name/monkey/retromusic/model/Song.kt
+index 47feec8a5..8fda50f4d 100644
+--- a/app/src/main/java/code/name/monkey/retromusic/model/Song.kt
++++ b/app/src/main/java/code/name/monkey/retromusic/model/Song.kt
+@@ -31,7 +31,8 @@ open class Song(
+     open val artistId: Long,
+     open val artistName: String,
+     open val composer: String?,
+-    open val albumArtist: String?
++    open val albumArtist: String?,
++    open val localMediaStoreId: Long? = null
+ ) : Parcelable {
+ 
+ 
+@@ -90,7 +91,8 @@ open class Song(
+         artistId: Long = this.artistId,
+         artistName: String = this.artistName,
+         composer: String? = this.composer,
+-        albumArtist: String? = this.albumArtist
++        albumArtist: String? = this.albumArtist,
++        localMediaStoreId: Long? = this.localMediaStoreId
+     ): Song = Song(
+         id = id,
+         title = title,
+@@ -104,7 +106,8 @@ open class Song(
+         artistId = artistId,
+         artistName = artistName,
+         composer = composer,
+-        albumArtist = albumArtist
++        albumArtist = albumArtist,
++        localMediaStoreId = localMediaStoreId
+     )
+ 
+     companion object {
+@@ -123,7 +126,8 @@ open class Song(
+             artistId = -1,
+             artistName = "",
+             composer = "",
+-            albumArtist = ""
++            albumArtist = "",
++            localMediaStoreId = null
+         )
+     }
+ }
+\ No newline at end of file
+diff --git a/app/src/main/java/code/name/monkey/retromusic/network/subsonic/SubsonicMapper.kt b/app/src/main/java/code/name/monkey/retromusic/network/subsonic/SubsonicMapper.kt
+index 878fad337..3aa26da3d 100644
+--- a/app/src/main/java/code/name/monkey/retromusic/network/subsonic/SubsonicMapper.kt
++++ b/app/src/main/java/code/name/monkey/retromusic/network/subsonic/SubsonicMapper.kt
+@@ -18,6 +18,9 @@ object SubsonicMapper {
+ 
+     private val subsonicToMetroMap = ConcurrentHashMap<String, Long>()
+     private val metroToSubsonicMap = ConcurrentHashMap<Long, String>()
++    private val metroToLocalSongMap = ConcurrentHashMap<Long, Long>()
++    private val metroToLocalAlbumMap = ConcurrentHashMap<Long, Long>()
++    private val metroToLocalArtistMap = ConcurrentHashMap<Long, Long>()
+     private val songCache = ConcurrentHashMap<Long, SubsonicSong>()
+ 
+     fun registerMapping(metroId: Long, subsonicId: String) {
+@@ -27,6 +30,30 @@ object SubsonicMapper {
+         }
+     }
+ 
++    fun registerLocalMapping(metroId: Long, localMediaStoreId: Long) {
++        if (localMediaStoreId > 0) {
++            metroToLocalSongMap[metroId] = localMediaStoreId
++        }
++    }
++
++    fun toLocalMediaStoreId(metroId: Long): Long? = metroToLocalSongMap[metroId]
++
++    fun registerLocalAlbumMapping(metroId: Long, localAlbumId: Long) {
++        if (localAlbumId > 0) {
++            metroToLocalAlbumMap[metroId] = localAlbumId
++        }
++    }
++
++    fun toLocalAlbumId(metroId: Long): Long? = metroToLocalAlbumMap[metroId]
++
++    fun registerLocalArtistMapping(metroId: Long, localArtistId: Long) {
++        if (localArtistId > 0) {
++            metroToLocalArtistMap[metroId] = localArtistId
++        }
++    }
++
++    fun toLocalArtistId(metroId: Long): Long? = metroToLocalArtistMap[metroId]
++
+     fun toMetroId(subsonicId: String): Long {
+         if (subsonicId.isBlank()) return -1L
+         subsonicToMetroMap[subsonicId]?.let { return it }
+diff --git a/app/src/main/java/code/name/monkey/retromusic/repository/Repository.kt b/app/src/main/java/code/name/monkey/retromusic/repository/Repository.kt
+index 90c462a58..ec60093ef 100644
+--- a/app/src/main/java/code/name/monkey/retromusic/repository/Repository.kt
++++ b/app/src/main/java/code/name/monkey/retromusic/repository/Repository.kt
+@@ -133,9 +133,45 @@ class RealRepository(
+         }
+     }
+ 
++    private var hasPrewarmed = false
++    private suspend fun prewarmMappings() {
++        if (hasPrewarmed) return
++        hasPrewarmed = true
++        try {
++            for (song in catalogDao.getAllSongs()) {
++                if (song.localMediaStoreId != null && song.localMediaStoreId > 0) {
++                    code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerLocalMapping(song.id, song.localMediaStoreId)
++                }
++                if (!song.subsonicId.isNullOrBlank()) {
++                    code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerMapping(song.id, song.subsonicId)
++                }
++            }
++            for (album in catalogDao.getAllAlbums()) {
++                if (album.localAlbumId != null && album.localAlbumId > 0) {
++                    code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerLocalAlbumMapping(album.id, album.localAlbumId)
++                }
++                if (!album.subsonicAlbumId.isNullOrBlank()) {
++                    code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerMapping(album.id, album.subsonicAlbumId)
++                }
++            }
++            for (artist in catalogDao.getAllArtists()) {
++                if (artist.localArtistId != null && artist.localArtistId > 0) {
++                    code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerLocalArtistMapping(artist.id, artist.localArtistId)
++                }
++                if (!artist.subsonicArtistId.isNullOrBlank()) {
++                    code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerMapping(artist.id, artist.subsonicArtistId)
++                }
++            }
++        } catch (e: Exception) {
++            logE("RealRepository: prewarmMappings failed: ${e.message}")
++        }
++    }
++
+     private suspend fun ensureCatalogLoaded() {
+         if (catalogDao.getSongCount() == 0) {
+             syncEngine.syncAll(songRepository, albumRepository, artistRepository, genreRepository)
++        } else {
++            prewarmMappings()
+         }
+     }
+ 
+diff --git a/app/src/main/java/code/name/monkey/retromusic/repository/SongRepository.kt b/app/src/main/java/code/name/monkey/retromusic/repository/SongRepository.kt
+index 8e5471fff..65e5424e6 100644
+--- a/app/src/main/java/code/name/monkey/retromusic/repository/SongRepository.kt
++++ b/app/src/main/java/code/name/monkey/retromusic/repository/SongRepository.kt
+@@ -114,7 +114,8 @@ class RealSongRepository(private val context: Context) : SongRepository {
+     }
+ 
+     override fun song(songId: Long): Song {
+-        return song(makeSongCursor(AudioColumns._ID + "=?", arrayOf(songId.toString())))
++        val effectiveId = code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toLocalMediaStoreId(songId) ?: songId
++        return song(makeSongCursor(AudioColumns._ID + "=?", arrayOf(effectiveId.toString())))
+     }
+ 
+     override fun songsByFilePath(filePath: String, ignoreBlacklist: Boolean): List<Song> {
+diff --git a/app/src/main/java/code/name/monkey/retromusic/util/MusicUtil.kt b/app/src/main/java/code/name/monkey/retromusic/util/MusicUtil.kt
+index 11090e47d..411166c00 100644
+--- a/app/src/main/java/code/name/monkey/retromusic/util/MusicUtil.kt
++++ b/app/src/main/java/code/name/monkey/retromusic/util/MusicUtil.kt
+@@ -206,8 +206,9 @@ object MusicUtil : KoinComponent {
+ 
+     @JvmStatic
+     fun getMediaStoreAlbumCoverUri(albumId: Long): Uri {
++        val effectiveId = code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toLocalAlbumId(albumId) ?: albumId
+         val sArtworkUri = "content://media/external/audio/albumart".toUri()
+-        return ContentUris.withAppendedId(sArtworkUri, albumId)
++        return ContentUris.withAppendedId(sArtworkUri, effectiveId)
+     }
+ 
+ 
+@@ -282,9 +283,10 @@ object MusicUtil : KoinComponent {
+     }
+ 
+     fun getSongFileUri(songId: Long): Uri {
++        val effectiveId = code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toLocalMediaStoreId(songId) ?: songId
+         return ContentUris.withAppendedId(
+             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+-            songId
++            effectiveId
+         )
+     }
+ 
+-- 
+2.45.2.windows.1
+
