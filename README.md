@@ -1,75 +1,63 @@
 <p align="center">
-  <a href="https://retromusic.app">
-    <img src="app\src\main\ic_launcher-web.png" height="128">
-    <h1 align="center">Retro Music Player 🎵</h1>
-  </a>
+  <img src="app/src/main/ic_launcher-web.png" height="128">
+  <h1 align="center">RetroDrome 🎵</h1>
 </p>
+
 <p align="center">
-  <a href="https://github.com/RetroMusicPlayer/RetroMusicPlayer" style="text-decoration:none" area-label="Android">
+  <a href="https://github.com/Zephyr73/RetroDrome" style="text-decoration:none" aria-label="Android">
     <img src="https://img.shields.io/badge/Platform-Android-green.svg">
   </a>
-  <a href="https://github.com/RetroMusicPlayer/RetroMusicPlayer/actions/workflows/android.yml" style="text-decoration:none" area-label="Build Status">
-    <img src="https://github.com/RetroMusicPlayer/RetroMusicPlayer/actions/workflows/android.yml/badge.svg">
-  </a>
-  <a href="https://github.com/RetroMusicPlayer/RetroMusicPlayer" style="text-decoration:none" area-label="Min API: 21">
+  <a href="https://github.com/Zephyr73/RetroDrome" style="text-decoration:none" aria-label="Min API: 21">
     <img src="https://img.shields.io/badge/minSdkVersion-21-green.svg">
   </a>
-  <a href="https://play.google.com/store/apps/details?id=code.name.monkey.retromusic" style="text-decoration:none" area-label="Play Store">
-    <img src="https://img.shields.io/badge/Download-Google_Play-green.svg">
-  </a>
-  <a href="https://github.com/RetroMusicPlayer/RetroMusicPlayer/blob/master/LICENSE.md" style="text-decoration:none" area-label="License: GPL v3">
+  <a href="https://github.com/Zephyr73/RetroDrome/blob/master/LICENSE.md" style="text-decoration:none" aria-label="License: GPL v3">
     <img src="https://img.shields.io/badge/License-GPL%20v3-blue.svg">
   </a>
-  <a href="https://twitter.com/retromusicapp" style="text-decoration:none" area-label="Twitter Follow">
-    <img src="https://img.shields.io/twitter/follow/retromusicapp?style=social">
+  <a href="https://f-droid.org" style="text-decoration:none" aria-label="Build: F--Droid">
+    <img src="https://img.shields.io/badge/Build-Pure%20F--Droid-brightgreen.svg">
   </a>
-  <a href="https://crowdin.com/project/retromusicplayer" style="text-decoration:none" area-label="Crowdin">
-    <img src="https://badges.crowdin.net/retromusicplayer/localized.svg">
-  </a>
-
 </p>
 
 ___
-# We're looking for more contributors and maintainers!
-# If you'd like to be a maintainer, please DM us on [Telegram](https://telegram.me/Daksh777) or [Twitter](https://twitter.com/0xDPJ)
-# All contributions are welcome!
+
+## 🌟 About RetroDrome
+
+**RetroDrome** is an open-source, de-googled fork of the beloved [Retro Music Player](https://github.com/RetroMusicPlayer/RetroMusicPlayer), enhanced with native support for **Navidrome** / Subsonic music servers and an intelligent, unified music database.
+
+> [!NOTE]
+> **Fork & AI-Assisted Architecture**:  
+> RetroDrome was engineered and architected with the assistance of **AI** (Google DeepMind's Antigravity). Rather than maintaining a messy hard fork that drifts from upstream bug fixes, RetroDrome is built as a clean, modular patch series (`patches/`) on top of upstream RetroMusic. This allows the app to seamlessly pull and apply upstream improvements while keeping its Navidrome streaming and unified catalog capabilities intact.
+
 ___
 
-## 🆕 Material You Design Music Player for Android music lovers 
+## ✨ What Makes RetroDrome Special?
 
-## Download
-| Play Store | F-Droid | Obtanium |
-|:-:|:-:|:-:|
-| [<img src="assets/google-play-badge.png" height="80">](https://play.google.com/store/apps/details?id=code.name.monkey.retromusic) | [<img src="https://f-droid.org/badge/get-it-on.png" height="80">](https://f-droid.org/en/packages/code.name.monkey.retromusic/) | <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/{%22id%22:%22code.name.monkey.retromusic%22,%22url%22:%22https://github.com/RetroMusicPlayer/RetroMusicPlayer%22,%22author%22:%22RetroMusicPlayer%22,%22name%22:%22Retro Music Player%22}"><img src="https://raw.githubusercontent.com/ImranR98/Obtainium/b1c8ac6f2ab08497189721a788a5763e28ff64cd/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" height="80"></a>
- |
+- 🌐 **Native Navidrome / Subsonic Integration**: Stream your personal music collection directly from your self-hosted Navidrome or Subsonic-compatible server with secure token-based authentication.
+- 💿 **Seamless Unified Music Catalog**: Local device music (via Android MediaStore) and Navidrome server music are synchronized into a persistent Room database. Tracks, albums, and artists found in both places are automatically merged into single entries—no disjointed views or split libraries.
+- ⚡ **Intelligent Dual-Path Playback**: When playing tracks that exist both locally and on the server, RetroDrome prioritizes your local file using device hardware decoding (`c2.sec.mp3.decoder`), giving you zero network latency and zero mobile data usage. Remote-only tracks stream smoothly over HTTP.
+- 🛡️ **Pure De-Googled F-Droid Experience**: All proprietary Google Play Billing, Cast, and closed-source dependencies have been removed in favor of a clean, battery-friendly, privacy-focused build.
+- 🔄 **Automated Upstream Patch Pipeline**: Built-in scripts (`sync-upstream`, `apply-patches`, `export-patches`) allow you to rebase onto upstream RetroMusic updates at any time.
 
-or get it from the [GitHub Releases](https://github.com/RetroMusicPlayer/RetroMusicPlayer/releases).
-
-## ⚠ Join [@retromusiclog](https://telegram.me/retromusiclog) on Telegram for important updates.
 ___
 
 ## 📱 Screenshots
+
 ### App Themes
 | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.jpg" width="200"/> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.jpg" width="200"/> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.jpg" width="200"/> |
 |:---:|:---:|:---:|
-|Clearly white| Kinda dark | Just black|
+|Clearly white| Kinda dark | Just black (AMOLED)|
 
-### Player screen
+### Player Screen
 | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.jpg" width="200"/>| <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.jpg" width="200"/>| <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.jpg" width="200"/>| <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.jpg" width="200"/>| <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.jpg" width="200"/>|
 |:---:|:---:|:---:|:---:|:---:|
 | Home | Songs | Albums | Artists | Settings |
 
-### Synced lyrics screen (Over Cover)
+### Synced Lyrics (Over Cover & Replace Cover)
 | <img src="screenshots/synced_over_light.jpg" width="200"/>| <img src="screenshots/synced_over_dark.jpg" width="200"/>| <img src="screenshots/synced_over_black.jpg" width="200"/>|
 |:---:|:---:|:---:|
-| Synced Over Cover light | Synced Over Cover dark | Synced Over Cover black |
+| Synced Light | Synced Dark | Synced Black |
 
-### Synced lyrics screen (Replace Cover)
-| <img src="screenshots/synced_replace_light.jpg" width="200"/>| <img src="screenshots/synced_replace_dark.jpg" width="200"/>| <img src="screenshots/synced_replace_black.jpg" width="200"/>|
-|:---:|:---:|:---:|
-| Synced Replace Cover light | Synced Replace Cover dark | Synced Replace Cover black |
-
-### 10+ Now playing themes
+### 10+ Now Playing Themes
 | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.jpg" width="200"/>	|<img src="screenshots/fit.jpg" width="200"/>|   <img src="screenshots/flat.jpg" width="200"/>  	|    <img src="screenshots/color.jpg" width="200"/> 	|     <img src="screenshots/material.jpg" width="200"/>	|
 |:-----:	|:-----:	|:-----:	|:-----:	|:-----:	|
 | Normal 	| Fit 	| Flat 	| Color 	| Material 	|
@@ -80,70 +68,63 @@ ___
 
 ___
 
-## 🧭 Navigation never been made easier 
-Self-explanatory interface without overloaded menus.
+## 📦 Features Overview
 
-## 🎨 Colorful
-You can choose between three different main themes: Clearly White, Kinda
-Dark and Just Black for AMOLED displays. Select your favorite accent
-color from a color palette.
-
-## 🏠 Home
-Where you can view your recently/top played artists, albums and
-favorite songs. No other music player has this feature.
-
-## 📦 Included Features
--  Base 3 themes (Clearly White, Kinda Dark and Just Black)
--  Chromecast support
--  Choose from 10+ now playing themes
--  Driving Mode
--  Headset/Bluetooth support
--  Music duration filter
--  Android Auto support
--  Wallpaper accent picker on Android 8.1+
--  Material You support on Android 12+
--  Monet themed icon support on Android 13+
--  Folder support - Play songs by folder
--  Gapless playback
--  Volume controls
--  Carousel effect for album covers
--  Home screen widgets
--  Lock screen playback controls
--  Lyrics screen (download and sync with music)
--  Sleep timer
--  Easy drag to sort playlist & play queue
--  Tag editor
--  Create, edit and import playlists
--  Playing queue with reorder
--  User profile
--  30+ languages support (help translate the project: [Crowdin](https://crowdin.com/project/retromusicplayer)
--  Browse and play your music by songs, albums, artists, playlists and
-  genre
--  Smart Auto Playlists - Recently played, most played and history
--  Build your playlist on the go
-
-We are trying our best to bring you the best user experience. The app is regularly updated for bug fixes and new features.
+- **Unified Library**: Browse all local and Navidrome tracks, albums, artists, and playlists side by side.
+- **Navidrome Settings**: Quick server configuration with URL, username, password/token, and connection verification in Settings.
+- **Material You Design**: Dynamic accent colors on Android 12+ and Monet themed icon support on Android 13+.
+- **3 Base Themes**: Clearly White, Kinda Dark, and Just Black for AMOLED displays.
+- **10+ Now Playing Themes**: Choose your favorite player layout and visual style.
+- **Synced & Plain Lyrics**: Embedded lyrics and synchronized scrolling.
+- **Smart Playlists**: Recently played, top played, and listening history.
+- **Offline & Low-Bandwidth Friendly**: Cached album covers, local playback prioritization, and efficient Glide image loading.
+- **Gapless Playback**: Uninterrupted audio playback across tracks.
+- **Sleep Timer & Driving Mode**: Built-in audio tools for bedtime and commute.
+- **Tag Editor & Metadata Viewer**: Edit track details and view detailed audio metadata.
+- **Home Screen & Lock Screen Controls**: Rich notification and widget controls.
 
 ___
 
+## 🛠️ Building & Maintenance Workflow
 
-## ❓ FAQ
-Please read the FAQ [here](https://retromusic.app/faq.html)
+### Building the APK
 
-In any case, if you find or notice any bugs please report them by creating an issue or by contacting us in the [Telegram help & feedback group](https://t.me/retromusicapp).
-If you have any feature suggestions, please create an issue with detailed information or by contacting us in the [Telegram suggestions group](https://t.me/retro_music_suggestion).
+RetroDrome targets Java 21 and the pure F-Droid build flavor:
 
-## 🔗 Social links
-**Telegram:** https://t.me/retromusicapp <br>
-**Crowdin**: https://crowdin.com/project/retromusicplayer <br>
-**Pinterest:** https://pinterest.com/retromusicapp <br>
-**Twitter:** https://twitter.com/retromusicapp <br>
+```bash
+# Debug build (fast local iteration):
+./gradlew :app:assembleFdroidDebug
 
-## 🗂️ License
+# Release build:
+./gradlew :app:assembleFdroidRelease
+```
 
-Retro Music Player is released under the GNU General Public License v3.0
-(GPLv3), which can be found [here](LICENSE.md)
+### Keeping Up With Upstream RetroMusic
 
+RetroDrome uses automated patch management to keep your fork up to date with upstream RetroMusic:
 
->Please note: Retro Music Player is a local music player app. It
->doesn't support music downloading or online music streaming.
+```bash
+# On Linux / macOS / Git Bash:
+./scripts/sync-upstream.sh
+
+# On Windows PowerShell:
+.\scripts\sync-upstream.ps1
+```
+
+To validate or re-apply patches manually:
+```bash
+# Apply patch series:
+.\scripts\apply-patches.ps1
+
+# Export new commits to patches/:
+.\scripts\export-patches.ps1
+```
+
+___
+
+## 🗂️ License & Credits
+
+RetroDrome is released under the **GNU General Public License v3.0 (GPLv3)**, which can be found in [LICENSE.md](LICENSE.md).
+
+- **Original Project**: Huge thanks to the [Retro Music Player](https://github.com/RetroMusicPlayer/RetroMusicPlayer) team for creating such a gorgeous and intuitive Android music player.
+- **Navidrome Support**: Built for seamless integration with the [Navidrome](https://www.navidrome.org/) open-source music server.

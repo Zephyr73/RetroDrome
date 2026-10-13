@@ -16,47 +16,47 @@ import kotlin.math.abs
 object SubsonicMapper {
     private const val SUBSONIC_ID_OFFSET = Long.MIN_VALUE / 2
 
-    private val subsonicToMetroMap = ConcurrentHashMap<String, Long>()
-    private val metroToSubsonicMap = ConcurrentHashMap<Long, String>()
-    private val metroToLocalSongMap = ConcurrentHashMap<Long, Long>()
-    private val metroToLocalAlbumMap = ConcurrentHashMap<Long, Long>()
-    private val metroToLocalArtistMap = ConcurrentHashMap<Long, Long>()
+    private val subsonicToRetroMap = ConcurrentHashMap<String, Long>()
+    private val retroToSubsonicMap = ConcurrentHashMap<Long, String>()
+    private val retroToLocalSongMap = ConcurrentHashMap<Long, Long>()
+    private val retroToLocalAlbumMap = ConcurrentHashMap<Long, Long>()
+    private val retroToLocalArtistMap = ConcurrentHashMap<Long, Long>()
     private val songCache = ConcurrentHashMap<Long, SubsonicSong>()
 
-    fun registerMapping(metroId: Long, subsonicId: String) {
+    fun registerMapping(retroId: Long, subsonicId: String) {
         if (subsonicId.isNotBlank()) {
-            subsonicToMetroMap[subsonicId] = metroId
-            metroToSubsonicMap[metroId] = subsonicId
+            subsonicToRetroMap[subsonicId] = retroId
+            retroToSubsonicMap[retroId] = subsonicId
         }
     }
 
-    fun registerLocalMapping(metroId: Long, localMediaStoreId: Long) {
+    fun registerLocalMapping(retroId: Long, localMediaStoreId: Long) {
         if (localMediaStoreId > 0) {
-            metroToLocalSongMap[metroId] = localMediaStoreId
+            retroToLocalSongMap[retroId] = localMediaStoreId
         }
     }
 
-    fun toLocalMediaStoreId(metroId: Long): Long? = metroToLocalSongMap[metroId]
+    fun toLocalMediaStoreId(retroId: Long): Long? = retroToLocalSongMap[retroId]
 
-    fun registerLocalAlbumMapping(metroId: Long, localAlbumId: Long) {
+    fun registerLocalAlbumMapping(retroId: Long, localAlbumId: Long) {
         if (localAlbumId > 0) {
-            metroToLocalAlbumMap[metroId] = localAlbumId
+            retroToLocalAlbumMap[retroId] = localAlbumId
         }
     }
 
-    fun toLocalAlbumId(metroId: Long): Long? = metroToLocalAlbumMap[metroId]
+    fun toLocalAlbumId(retroId: Long): Long? = retroToLocalAlbumMap[retroId]
 
-    fun registerLocalArtistMapping(metroId: Long, localArtistId: Long) {
+    fun registerLocalArtistMapping(retroId: Long, localArtistId: Long) {
         if (localArtistId > 0) {
-            metroToLocalArtistMap[metroId] = localArtistId
+            retroToLocalArtistMap[retroId] = localArtistId
         }
     }
 
-    fun toLocalArtistId(metroId: Long): Long? = metroToLocalArtistMap[metroId]
+    fun toLocalArtistId(retroId: Long): Long? = retroToLocalArtistMap[retroId]
 
-    fun toMetroId(subsonicId: String): Long {
+    fun toRetroId(subsonicId: String): Long {
         if (subsonicId.isBlank()) return -1L
-        subsonicToMetroMap[subsonicId]?.let { return it }
+        subsonicToRetroMap[subsonicId]?.let { return it }
 
         var hash = -3750763034362895579L
         for (b in subsonicId.toByteArray(Charsets.UTF_8)) {
@@ -64,32 +64,32 @@ object SubsonicMapper {
             hash *= 1099511628211L
         }
         val positiveHash = abs(hash)
-        val metroId = SUBSONIC_ID_OFFSET + (positiveHash % (Long.MAX_VALUE / 4))
+        val retroId = SUBSONIC_ID_OFFSET + (positiveHash % (Long.MAX_VALUE / 4))
 
-        subsonicToMetroMap[subsonicId] = metroId
-        metroToSubsonicMap[metroId] = subsonicId
-        return metroId
+        subsonicToRetroMap[subsonicId] = retroId
+        retroToSubsonicMap[retroId] = subsonicId
+        return retroId
     }
 
-    fun toSubsonicId(metroId: Long): String? {
-        return metroToSubsonicMap[metroId]
+    fun toSubsonicId(retroId: Long): String? {
+        return retroToSubsonicMap[retroId]
     }
 
     fun isSubsonicId(id: Long): Boolean {
-        return id < 0 || metroToSubsonicMap.containsKey(id)
+        return id < 0 || retroToSubsonicMap.containsKey(id)
     }
 
-    fun getCachedSong(metroId: Long): SubsonicSong? = songCache[metroId]
+    fun getCachedSong(retroId: Long): SubsonicSong? = songCache[retroId]
 
-    suspend fun getSongDetails(metroId: Long): SubsonicSong? {
-        songCache[metroId]?.let { return it }
-        val subId = toSubsonicId(metroId) ?: return null
+    suspend fun getSongDetails(retroId: Long): SubsonicSong? {
+        songCache[retroId]?.let { return it }
+        val subId = toSubsonicId(retroId) ?: return null
         return try {
             val api = SubsonicClientFactory.getApi() ?: return null
             val response = api.getSong(subId)
             val subSong = response.response.song
             if (subSong != null) {
-                songCache[metroId] = subSong
+                songCache[retroId] = subSong
             }
             subSong
         } catch (e: Exception) {
@@ -98,9 +98,9 @@ object SubsonicMapper {
     }
 
     fun SubsonicSong.toSong(): Song {
-        val sId = toMetroId(id)
-        val aId = albumId?.let { toMetroId(it) } ?: toMetroId("album_${album ?: ""}")
-        val artId = artistId?.let { toMetroId(it) } ?: toMetroId("artist_${artist ?: ""}")
+        val sId = toRetroId(id)
+        val aId = albumId?.let { toRetroId(it) } ?: toRetroId("album_${album ?: ""}")
+        val artId = artistId?.let { toRetroId(it) } ?: toRetroId("artist_${artist ?: ""}")
         val streamUrl = SubsonicClientFactory.buildStreamUrl(id)
 
         songCache[sId] = this
@@ -123,15 +123,15 @@ object SubsonicMapper {
     }
 
     fun SubsonicAlbum.toAlbum(songs: List<Song> = emptyList()): Album {
-        val aId = toMetroId(id)
-        val artId = artistId?.let { toMetroId(it) } ?: toMetroId("artist_${artist ?: ""}")
+        val aId = toRetroId(id)
+        val artId = artistId?.let { toRetroId(it) } ?: toRetroId("artist_${artist ?: ""}")
         val effectiveSongs = if (songs.isNotEmpty()) {
             songs
         } else {
             val count = if (songCount > 0) songCount else 1
             (0 until count).map { i ->
                 Song(
-                    id = toMetroId("album_song_${id}_$i"),
+                    id = toRetroId("album_song_${id}_$i"),
                     title = displayTitle,
                     trackNumber = i + 1,
                     year = year ?: 0,
@@ -151,19 +151,19 @@ object SubsonicMapper {
     }
 
     fun SubsonicArtist.toArtist(albums: List<Album> = emptyList()): Artist {
-        val artId = toMetroId(id)
+        val artId = toRetroId(id)
         val artist = Artist(artId, albums)
         artist.name = name
         return artist
     }
 
     fun SubsonicPlaylist.toPlaylist(): Playlist {
-        val pId = toMetroId(id)
+        val pId = toRetroId(id)
         return Playlist(id = pId, name = name)
     }
 
     fun SubsonicGenre.toGenre(): Genre {
-        val gId = toMetroId(value)
+        val gId = toRetroId(value)
         return Genre(id = gId, name = value, songCount = songCount)
     }
 }

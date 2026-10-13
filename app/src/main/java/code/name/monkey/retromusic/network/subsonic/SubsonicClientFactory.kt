@@ -16,7 +16,7 @@ import javax.net.ssl.X509TrustManager
 
 object SubsonicClientFactory {
     private const val API_VERSION = "1.16.1"
-    private const val CLIENT_NAME = "Metro"
+    private const val CLIENT_NAME = "RetroDrome"
 
     @Volatile
     private var cachedApi: SubsonicApi? = null
