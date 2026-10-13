@@ -1,7 +1,7 @@
 From 4afb4d664bfaa55b067ad2d47cbddf9305387c27 Mon Sep 17 00:00:00 2001
 From: Zephyr <Zephyr73@users.noreply.github.com>
 Date: Mon, 12 Oct 2026 21:42:53 -0400
-Subject: [PATCH 13/14] docs: add AI agent instructions and update AGENTS.md
+Subject: [PATCH 13/15] docs: add AI agent instructions and update AGENTS.md
 
 ---
  AGENTS.md       |  12 +++-

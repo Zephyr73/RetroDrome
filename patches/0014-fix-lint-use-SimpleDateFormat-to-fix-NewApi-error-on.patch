@@ -1,7 +1,7 @@
 From cf80f643de2a02af4e65d689ed130d448252ecad Mon Sep 17 00:00:00 2001
 From: Zephyr <Zephyr73@users.noreply.github.com>
 Date: Mon, 12 Oct 2026 21:59:42 -0400
-Subject: [PATCH 14/14] fix(lint): use SimpleDateFormat to fix NewApi error on
+Subject: [PATCH 14/15] fix(lint): use SimpleDateFormat to fix NewApi error on
  API < 26
 
 ---

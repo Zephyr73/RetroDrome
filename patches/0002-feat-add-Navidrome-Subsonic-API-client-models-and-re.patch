@@ -1,7 +1,7 @@
 From 989161f4780cea8c588d3a6e47d6f1be43e8d683 Mon Sep 17 00:00:00 2001
 From: Zephyr <Zephyr73@users.noreply.github.com>
 Date: Mon, 12 Oct 2026 18:13:42 -0400
-Subject: [PATCH 02/14] feat: add Navidrome Subsonic API client, models, and
+Subject: [PATCH 02/15] feat: add Navidrome Subsonic API client, models, and
  repository
 
 ---
