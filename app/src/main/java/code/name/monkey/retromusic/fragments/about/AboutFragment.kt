@@ -32,7 +32,7 @@ class AboutFragment : Fragment(R.layout.fragment_about), View.OnClickListener {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         _binding = FragmentAboutBinding.bind(view)
-        binding.aboutContent.cardOther.version.setSummary(getAppVersion())
+        binding.aboutContent.version.setSummary(getAppVersion())
         setUpView()
 
         binding.aboutContent.root.applyInsetter {
@@ -43,9 +43,9 @@ class AboutFragment : Fragment(R.layout.fragment_about), View.OnClickListener {
     }
 
     private fun setUpView() {
-        binding.aboutContent.cardOther.appGithub.setOnClickListener(this)
-        binding.aboutContent.cardOther.changelog.setOnClickListener(this)
-        binding.aboutContent.cardOther.openSource.setOnClickListener(this)
+        binding.aboutContent.appGithub.setOnClickListener(this)
+        binding.aboutContent.changelog.setOnClickListener(this)
+        binding.aboutContent.openSource.setOnClickListener(this)
     }
 
     override fun onClick(view: View) {

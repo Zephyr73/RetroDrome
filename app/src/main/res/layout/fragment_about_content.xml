@@ -1,11 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:paddingBottom="@dimen/mini_player_height">
 
-    <include
-        android:id="@+id/card_other"
-        layout="@layout/card_other" />
+    <code.name.monkey.retromusic.views.ListItemView
+        android:id="@+id/version"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:listItemIcon="@drawable/ic_info_outline"
+        app:listItemTitle="@string/version" />
+
+    <code.name.monkey.retromusic.views.ListItemView
+        android:id="@+id/changelog"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:listItemIcon="@drawable/ic_file_edit"
+        app:listItemSummary="@string/changelog_summary"
+        app:listItemTitle="@string/changelog" />
+
+    <code.name.monkey.retromusic.views.ListItemView
+        android:id="@+id/appGithub"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:listItemIcon="@drawable/ic_github_circle"
+        app:listItemSummary="@string/git_hub_summary"
+        app:listItemTitle="@string/git_hub" />
+
+    <code.name.monkey.retromusic.views.ListItemView
+        android:id="@+id/openSource"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:listItemIcon="@drawable/ic_license"
+        app:listItemSummary="@string/pref_summary_open_source_licences"
+        app:listItemTitle="@string/pref_title_open_source_licences" />
+
 </LinearLayout>
