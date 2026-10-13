@@ -18,6 +18,9 @@ object SubsonicMapper {
 
     private val subsonicToMetroMap = ConcurrentHashMap<String, Long>()
     private val metroToSubsonicMap = ConcurrentHashMap<Long, String>()
+    private val metroToLocalSongMap = ConcurrentHashMap<Long, Long>()
+    private val metroToLocalAlbumMap = ConcurrentHashMap<Long, Long>()
+    private val metroToLocalArtistMap = ConcurrentHashMap<Long, Long>()
     private val songCache = ConcurrentHashMap<Long, SubsonicSong>()
 
     fun registerMapping(metroId: Long, subsonicId: String) {
@@ -26,6 +29,30 @@ object SubsonicMapper {
             metroToSubsonicMap[metroId] = subsonicId
         }
     }
+
+    fun registerLocalMapping(metroId: Long, localMediaStoreId: Long) {
+        if (localMediaStoreId > 0) {
+            metroToLocalSongMap[metroId] = localMediaStoreId
+        }
+    }
+
+    fun toLocalMediaStoreId(metroId: Long): Long? = metroToLocalSongMap[metroId]
+
+    fun registerLocalAlbumMapping(metroId: Long, localAlbumId: Long) {
+        if (localAlbumId > 0) {
+            metroToLocalAlbumMap[metroId] = localAlbumId
+        }
+    }
+
+    fun toLocalAlbumId(metroId: Long): Long? = metroToLocalAlbumMap[metroId]
+
+    fun registerLocalArtistMapping(metroId: Long, localArtistId: Long) {
+        if (localArtistId > 0) {
+            metroToLocalArtistMap[metroId] = localArtistId
+        }
+    }
+
+    fun toLocalArtistId(metroId: Long): Long? = metroToLocalArtistMap[metroId]
 
     fun toMetroId(subsonicId: String): Long {
         if (subsonicId.isBlank()) return -1L

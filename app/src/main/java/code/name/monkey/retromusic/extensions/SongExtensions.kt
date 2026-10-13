@@ -9,17 +9,26 @@ import android.net.Uri
 import code.name.monkey.retromusic.network.subsonic.SubsonicClientFactory
 import code.name.monkey.retromusic.network.subsonic.SubsonicMapper
 
-val Song.uri
+val Song.uri: Uri
     get() = if (data.startsWith("http://") || data.startsWith("https://")) {
         Uri.parse(data)
-    } else if (SubsonicMapper.isSubsonicId(id)) {
-        val subsonicId = SubsonicMapper.toSubsonicId(id) ?: ""
-        Uri.parse(SubsonicClientFactory.buildStreamUrl(subsonicId))
     } else {
-        MusicUtil.getSongFileUri(songId = id)
+        val effectiveLocalId = localMediaStoreId ?: SubsonicMapper.toLocalMediaStoreId(id)
+        if (effectiveLocalId != null && effectiveLocalId > 0 && (data.isBlank() || java.io.File(data).exists())) {
+            MusicUtil.getSongFileUri(songId = effectiveLocalId)
+        } else if (SubsonicMapper.isSubsonicId(id)) {
+            val subsonicId = SubsonicMapper.toSubsonicId(id) ?: ""
+            Uri.parse(SubsonicClientFactory.buildStreamUrl(subsonicId))
+        } else if (effectiveLocalId != null && effectiveLocalId > 0) {
+            MusicUtil.getSongFileUri(songId = effectiveLocalId)
+        } else if (data.isNotBlank() && java.io.File(data).exists()) {
+            Uri.fromFile(java.io.File(data))
+        } else {
+            MusicUtil.getSongFileUri(songId = id)
+        }
     }
 
-val Song.albumArtUri
+val Song.albumArtUri: Uri
     get() = if (SubsonicMapper.isSubsonicId(id)) {
         val subsonicAlbumId = SubsonicMapper.toSubsonicId(albumId)
             ?: SubsonicMapper.toSubsonicId(id) ?: ""
@@ -27,7 +36,8 @@ val Song.albumArtUri
     } else if (MusicUtil.isAlbumNameUnknown(albumName, artistName)) {
         Uri.EMPTY
     } else {
-        MusicUtil.getMediaStoreAlbumCoverUri(albumId)
+        val effectiveAlbumId = SubsonicMapper.toLocalAlbumId(albumId) ?: albumId
+        MusicUtil.getMediaStoreAlbumCoverUri(effectiveAlbumId)
     }
 
 fun ArrayList<Song>.toMediaSessionQueue(): List<QueueItem> {

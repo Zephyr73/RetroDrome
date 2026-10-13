@@ -31,7 +31,8 @@ open class Song(
     open val artistId: Long,
     open val artistName: String,
     open val composer: String?,
-    open val albumArtist: String?
+    open val albumArtist: String?,
+    open val localMediaStoreId: Long? = null
 ) : Parcelable {
 
 
@@ -90,7 +91,8 @@ open class Song(
         artistId: Long = this.artistId,
         artistName: String = this.artistName,
         composer: String? = this.composer,
-        albumArtist: String? = this.albumArtist
+        albumArtist: String? = this.albumArtist,
+        localMediaStoreId: Long? = this.localMediaStoreId
     ): Song = Song(
         id = id,
         title = title,
@@ -104,7 +106,8 @@ open class Song(
         artistId = artistId,
         artistName = artistName,
         composer = composer,
-        albumArtist = albumArtist
+        albumArtist = albumArtist,
+        localMediaStoreId = localMediaStoreId
     )
 
     companion object {
@@ -123,7 +126,8 @@ open class Song(
             artistId = -1,
             artistName = "",
             composer = "",
-            albumArtist = ""
+            albumArtist = "",
+            localMediaStoreId = null
         )
     }
 }

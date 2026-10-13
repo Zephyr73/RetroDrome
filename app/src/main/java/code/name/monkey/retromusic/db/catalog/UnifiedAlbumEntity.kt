@@ -62,6 +62,9 @@ data class UnifiedAlbumEntity(
         if (!subsonicAlbumId.isNullOrBlank()) {
             code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerMapping(id, subsonicAlbumId)
         }
+        if (localAlbumId != null && localAlbumId > 0) {
+            code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerLocalAlbumMapping(id, localAlbumId)
+        }
         return Album(id = id, songs = songs)
     }
 

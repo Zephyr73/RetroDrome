@@ -49,6 +49,9 @@ data class UnifiedArtistEntity(
         if (!subsonicArtistId.isNullOrBlank()) {
             code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerMapping(id, subsonicArtistId)
         }
+        if (localArtistId != null && localArtistId > 0) {
+            code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerLocalArtistMapping(id, localArtistId)
+        }
         val artist = Artist(id, albums)
         artist.name = name
         return artist

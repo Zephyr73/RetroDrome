@@ -133,9 +133,45 @@ class RealRepository(
         }
     }
 
+    private var hasPrewarmed = false
+    private suspend fun prewarmMappings() {
+        if (hasPrewarmed) return
+        hasPrewarmed = true
+        try {
+            for (song in catalogDao.getAllSongs()) {
+                if (song.localMediaStoreId != null && song.localMediaStoreId > 0) {
+                    code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerLocalMapping(song.id, song.localMediaStoreId)
+                }
+                if (!song.subsonicId.isNullOrBlank()) {
+                    code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerMapping(song.id, song.subsonicId)
+                }
+            }
+            for (album in catalogDao.getAllAlbums()) {
+                if (album.localAlbumId != null && album.localAlbumId > 0) {
+                    code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerLocalAlbumMapping(album.id, album.localAlbumId)
+                }
+                if (!album.subsonicAlbumId.isNullOrBlank()) {
+                    code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerMapping(album.id, album.subsonicAlbumId)
+                }
+            }
+            for (artist in catalogDao.getAllArtists()) {
+                if (artist.localArtistId != null && artist.localArtistId > 0) {
+                    code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerLocalArtistMapping(artist.id, artist.localArtistId)
+                }
+                if (!artist.subsonicArtistId.isNullOrBlank()) {
+                    code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerMapping(artist.id, artist.subsonicArtistId)
+                }
+            }
+        } catch (e: Exception) {
+            logE("RealRepository: prewarmMappings failed: ${e.message}")
+        }
+    }
+
     private suspend fun ensureCatalogLoaded() {
         if (catalogDao.getSongCount() == 0) {
             syncEngine.syncAll(songRepository, albumRepository, artistRepository, genreRepository)
+        } else {
+            prewarmMappings()
         }
     }
 

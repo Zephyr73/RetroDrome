@@ -85,6 +85,9 @@ data class UnifiedSongEntity(
         if (!subsonicId.isNullOrBlank()) {
             code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerMapping(id, subsonicId)
         }
+        if (localMediaStoreId != null && localMediaStoreId > 0) {
+            code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerLocalMapping(id, localMediaStoreId)
+        }
 
         val streamData = if (!localPath.isNullOrBlank()) {
             localPath
@@ -107,7 +110,8 @@ data class UnifiedSongEntity(
             artistId = artistId,
             artistName = artistName,
             composer = composer,
-            albumArtist = albumArtist
+            albumArtist = albumArtist,
+            localMediaStoreId = localMediaStoreId
         )
     }
 

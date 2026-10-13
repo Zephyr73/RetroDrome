@@ -206,8 +206,9 @@ object MusicUtil : KoinComponent {
 
     @JvmStatic
     fun getMediaStoreAlbumCoverUri(albumId: Long): Uri {
+        val effectiveId = code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toLocalAlbumId(albumId) ?: albumId
         val sArtworkUri = "content://media/external/audio/albumart".toUri()
-        return ContentUris.withAppendedId(sArtworkUri, albumId)
+        return ContentUris.withAppendedId(sArtworkUri, effectiveId)
     }
 
 
@@ -282,9 +283,10 @@ object MusicUtil : KoinComponent {
     }
 
     fun getSongFileUri(songId: Long): Uri {
+        val effectiveId = code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toLocalMediaStoreId(songId) ?: songId
         return ContentUris.withAppendedId(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-            songId
+            effectiveId
         )
     }
 

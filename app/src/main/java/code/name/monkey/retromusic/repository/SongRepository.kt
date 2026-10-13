@@ -114,7 +114,8 @@ class RealSongRepository(private val context: Context) : SongRepository {
     }
 
     override fun song(songId: Long): Song {
-        return song(makeSongCursor(AudioColumns._ID + "=?", arrayOf(songId.toString())))
+        val effectiveId = code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toLocalMediaStoreId(songId) ?: songId
+        return song(makeSongCursor(AudioColumns._ID + "=?", arrayOf(effectiveId.toString())))
     }
 
     override fun songsByFilePath(filePath: String, ignoreBlacklist: Boolean): List<Song> {
