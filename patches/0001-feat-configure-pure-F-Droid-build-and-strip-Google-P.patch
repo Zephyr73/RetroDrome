@@ -1,7 +1,7 @@
 From ad6c57f24a405ee0f45b98a4c637204a57b4f64d Mon Sep 17 00:00:00 2001
 From: Zephyr <Zephyr73@users.noreply.github.com>
 Date: Mon, 12 Oct 2026 18:13:20 -0400
-Subject: [PATCH 1/5] feat: configure pure F-Droid build and strip Google Play
+Subject: [PATCH 1/7] feat: configure pure F-Droid build and strip Google Play
  dependencies
 
 ---

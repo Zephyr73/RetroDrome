@@ -1,0 +1,476 @@
+From 747203429c20d80a60958db3dc499f2a5cd022b1 Mon Sep 17 00:00:00 2001
+From: Zephyr <Zephyr73@users.noreply.github.com>
+Date: Mon, 12 Oct 2026 20:10:53 -0400
+Subject: [PATCH 7/7] feat: unify local and Navidrome catalogs with multi-tier
+ ID resolution and cover art fallback
+
+---
+ .../db/catalog/MusicCatalogSyncEngine.kt      | 81 ++++++++++++++++---
+ .../db/catalog/UnifiedAlbumEntity.kt          |  7 +-
+ .../db/catalog/UnifiedArtistEntity.kt         |  5 +-
+ .../retromusic/db/catalog/UnifiedMusicDao.kt  | 15 ++++
+ .../db/catalog/UnifiedSongEntity.kt           | 16 +++-
+ .../retromusic/glide/RetroGlideExtension.kt   | 38 +++++++--
+ .../network/subsonic/SubsonicMapper.kt        |  9 ++-
+ .../retromusic/repository/Repository.kt       | 43 +++++++---
+ 8 files changed, 181 insertions(+), 33 deletions(-)
+
+diff --git a/app/src/main/java/code/name/monkey/retromusic/db/catalog/MusicCatalogSyncEngine.kt b/app/src/main/java/code/name/monkey/retromusic/db/catalog/MusicCatalogSyncEngine.kt
+index a0b122c2e..370816b1c 100644
+--- a/app/src/main/java/code/name/monkey/retromusic/db/catalog/MusicCatalogSyncEngine.kt
++++ b/app/src/main/java/code/name/monkey/retromusic/db/catalog/MusicCatalogSyncEngine.kt
+@@ -28,6 +28,10 @@ class MusicCatalogSyncEngine(
+ ) {
+ 
+     private val syncMutex = Mutex()
++    private val localAlbumIds = java.util.concurrent.ConcurrentHashMap<String, Long>()
++    private val localArtistIds = java.util.concurrent.ConcurrentHashMap<String, Long>()
++    private val subsonicAlbumIds = java.util.concurrent.ConcurrentHashMap<String, String>()
++    private val subsonicArtistIds = java.util.concurrent.ConcurrentHashMap<String, String>()
+ 
+     @Volatile
+     var isSyncing: Boolean = false
+@@ -71,6 +75,39 @@ class MusicCatalogSyncEngine(
+             }
+ 
+             logD("MusicCatalogSyncEngine: Syncing ${localSongs.size} local songs...")
++            for (local in localSongs) {
++                if (local.albumId > 0) {
++                    val albumKey = UnifiedAlbumEntity.createAlbumKey(
++                        local.albumName,
++                        local.albumArtist?.takeIf { it.isNotBlank() } ?: local.artistName
++                    )
++                    localAlbumIds[albumKey] = local.albumId
++                }
++                if (local.artistId > 0) {
++                    val artistKey = UnifiedArtistEntity.createArtistKey(
++                        local.albumArtist?.takeIf { it.isNotBlank() } ?: local.artistName
++                    )
++                    localArtistIds[artistKey] = local.artistId
++                }
++            }
++
++            try {
++                for (album in albumRepo.albums()) {
++                    if (album.id > 0) {
++                        val key = UnifiedAlbumEntity.createAlbumKey(album.title, album.artistName)
++                        localAlbumIds[key] = album.id
++                    }
++                }
++                for (artist in artistRepo.artists()) {
++                    if (artist.id > 0) {
++                        val key = UnifiedArtistEntity.createArtistKey(artist.name)
++                        localArtistIds[key] = artist.id
++                    }
++                }
++            } catch (e: Exception) {
++                logE("MusicCatalogSyncEngine: Error mapping local album/artist repos: ${e.message}")
++            }
++
+             val existingSongs = dao.getAllSongs().associateBy { it.fingerprint }
+ 
+             val songsToSave = mutableListOf<UnifiedSongEntity>()
+@@ -149,6 +186,21 @@ class MusicCatalogSyncEngine(
+                     null
+                 } ?: continue
+ 
++                val albumKey = UnifiedAlbumEntity.createAlbumKey(
++                    fullAlbum.title,
++                    fullAlbum.artistName
++                )
++                val subAlbumIdStr = SubsonicMapper.toSubsonicId(fullAlbum.id)
++                    ?: SubsonicMapper.toSubsonicId(albumSummary.id)
++                if (!subAlbumIdStr.isNullOrBlank()) {
++                    subsonicAlbumIds[albumKey] = subAlbumIdStr
++                }
++                val artistKey = UnifiedArtistEntity.createArtistKey(fullAlbum.artistName)
++                val subArtistIdStr = SubsonicMapper.toSubsonicId(fullAlbum.artistId)
++                if (!subArtistIdStr.isNullOrBlank()) {
++                    subsonicArtistIds[artistKey] = subArtistIdStr
++                }
++
+                 for (remoteSong in fullAlbum.songs) {
+                     val fp = UnifiedSongEntity.createFingerprint(remoteSong.title, remoteSong.artistName)
+                     val existing = existingSongs[fp]
+@@ -160,17 +212,17 @@ class MusicCatalogSyncEngine(
+                         existing.albumName.equals(remoteSong.albumName, ignoreCase = true)
+                     )
+ 
+-                    if (isMatch) {
++                    if (isMatch && existing != null) {
+                         // Unify existing local song with server song!
+                         val updated = existing.copy(
+                             subsonicId = subId,
+                             source = SOURCE_BOTH
+                         )
+                         songsToUpsert.add(updated)
+-                    } else if (existing == null || existing.source == SOURCE_SERVER) {
++                    } else {
+                         // Pure server song
+                         val newSong = UnifiedSongEntity(
+-                            id = existing?.id ?: 0L,
++                            id = existing?.takeIf { it.source == SOURCE_SERVER }?.id ?: 0L,
+                             title = remoteSong.title,
+                             trackNumber = remoteSong.trackNumber,
+                             year = remoteSong.year,
+@@ -227,7 +279,12 @@ class MusicCatalogSyncEngine(
+                 else -> SOURCE_LOCAL
+             }
+ 
+-            val coverArtUrl = songs.firstOrNull { !it.subsonicId.isNullOrBlank() }?.subsonicId?.let {
++            val resolvedLocalAlbumId = localAlbumIds[albumKey] ?: existing?.localAlbumId
++            val resolvedSubsonicAlbumId = subsonicAlbumIds[albumKey] ?: existing?.subsonicAlbumId
++
++            val coverArtUrl = resolvedSubsonicAlbumId?.let {
++                SubsonicClientFactory.buildCoverArtUrl(it)
++            } ?: songs.firstOrNull { !it.subsonicId.isNullOrBlank() }?.subsonicId?.let {
+                 SubsonicClientFactory.buildCoverArtUrl(it)
+             } ?: existing?.coverArtUrl
+ 
+@@ -240,8 +297,8 @@ class MusicCatalogSyncEngine(
+                 year = sample.year,
+                 songCount = songs.size,
+                 dateModified = songs.maxOfOrNull { it.dateModified } ?: 0L,
+-                localAlbumId = songs.firstOrNull { it.localMediaStoreId != null }?.albumId,
+-                subsonicAlbumId = songs.firstOrNull { !it.subsonicId.isNullOrBlank() }?.subsonicId,
++                localAlbumId = resolvedLocalAlbumId,
++                subsonicAlbumId = resolvedSubsonicAlbumId,
+                 coverArtUrl = coverArtUrl,
+                 source = source,
+                 albumKey = albumKey
+@@ -286,15 +343,21 @@ class MusicCatalogSyncEngine(
+             }
+ 
+             val totalSongs = albums.sumOf { it.songCount }
++            val resolvedLocalArtistId = localArtistIds[artistKey] ?: existing?.localArtistId
++            val resolvedSubsonicArtistId = subsonicArtistIds[artistKey] ?: existing?.subsonicArtistId
++
++            val coverArtUrl = resolvedSubsonicArtistId?.let {
++                SubsonicClientFactory.buildCoverArtUrl(it)
++            } ?: albums.firstOrNull { !it.coverArtUrl.isNullOrBlank() }?.coverArtUrl
+ 
+             val artistEntity = UnifiedArtistEntity(
+                 id = existing?.id ?: 0L,
+                 name = sample.artistName,
+                 songCount = totalSongs,
+                 albumCount = albums.size,
+-                localArtistId = sample.localAlbumId,
+-                subsonicArtistId = sample.subsonicAlbumId,
+-                coverArtUrl = albums.firstOrNull { !it.coverArtUrl.isNullOrBlank() }?.coverArtUrl,
++                localArtistId = resolvedLocalArtistId,
++                subsonicArtistId = resolvedSubsonicArtistId,
++                coverArtUrl = coverArtUrl,
+                 source = source,
+                 artistKey = artistKey
+             )
+diff --git a/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedAlbumEntity.kt b/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedAlbumEntity.kt
+index e9d99f792..767981f9b 100644
+--- a/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedAlbumEntity.kt
++++ b/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedAlbumEntity.kt
+@@ -59,13 +59,16 @@ data class UnifiedAlbumEntity(
+     val albumKey: String = ""
+ ) {
+     fun toAlbum(songs: List<Song>): Album {
++        if (!subsonicAlbumId.isNullOrBlank()) {
++            code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerMapping(id, subsonicAlbumId)
++        }
+         return Album(id = id, songs = songs)
+     }
+ 
+     companion object {
+         fun createAlbumKey(title: String?, artist: String?): String {
+-            val t = title?.trim()?.lowercase(java.util.Locale.ROOT) ?: ""
+-            val a = artist?.trim()?.lowercase(java.util.Locale.ROOT) ?: ""
++            val t = UnifiedSongEntity.normalizeString(title)
++            val a = UnifiedSongEntity.normalizeString(artist)
+             return "$a|||$t"
+         }
+     }
+diff --git a/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedArtistEntity.kt b/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedArtistEntity.kt
+index 26a159dd7..0134d7a62 100644
+--- a/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedArtistEntity.kt
++++ b/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedArtistEntity.kt
+@@ -46,6 +46,9 @@ data class UnifiedArtistEntity(
+     val artistKey: String = ""
+ ) {
+     fun toArtist(albums: List<Album>): Artist {
++        if (!subsonicArtistId.isNullOrBlank()) {
++            code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerMapping(id, subsonicArtistId)
++        }
+         val artist = Artist(id, albums)
+         artist.name = name
+         return artist
+@@ -53,7 +56,7 @@ data class UnifiedArtistEntity(
+ 
+     companion object {
+         fun createArtistKey(name: String?): String {
+-            return name?.trim()?.lowercase(java.util.Locale.ROOT) ?: ""
++            return UnifiedSongEntity.normalizeString(name)
+         }
+     }
+ }
+diff --git a/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedMusicDao.kt b/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedMusicDao.kt
+index 6744202c6..b515cf0f9 100644
+--- a/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedMusicDao.kt
++++ b/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedMusicDao.kt
+@@ -58,6 +58,12 @@ interface UnifiedMusicDao {
+     @Query("SELECT * FROM unified_albums WHERE id = :id LIMIT 1")
+     suspend fun getAlbumById(id: Long): UnifiedAlbumEntity?
+ 
++    @Query("SELECT * FROM unified_albums WHERE local_album_id = :localAlbumId LIMIT 1")
++    suspend fun getAlbumByLocalId(localAlbumId: Long): UnifiedAlbumEntity?
++
++    @Query("SELECT * FROM unified_albums WHERE subsonic_album_id = :subsonicAlbumId LIMIT 1")
++    suspend fun getAlbumBySubsonicId(subsonicAlbumId: String): UnifiedAlbumEntity?
++
+     @Query("SELECT * FROM unified_albums WHERE artist_id = :artistId ORDER BY year DESC, title COLLATE NOCASE ASC")
+     suspend fun getAlbumsByArtistId(artistId: Long): List<UnifiedAlbumEntity>
+ 
+@@ -83,6 +89,15 @@ interface UnifiedMusicDao {
+     @Query("SELECT * FROM unified_artists WHERE id = :id LIMIT 1")
+     suspend fun getArtistById(id: Long): UnifiedArtistEntity?
+ 
++    @Query("SELECT * FROM unified_artists WHERE local_artist_id = :localArtistId LIMIT 1")
++    suspend fun getArtistByLocalId(localArtistId: Long): UnifiedArtistEntity?
++
++    @Query("SELECT * FROM unified_artists WHERE subsonic_artist_id = :subsonicArtistId LIMIT 1")
++    suspend fun getArtistBySubsonicId(subsonicArtistId: String): UnifiedArtistEntity?
++
++    @Query("SELECT * FROM unified_artists WHERE LOWER(TRIM(name)) = LOWER(TRIM(:name)) LIMIT 1")
++    suspend fun getArtistByName(name: String): UnifiedArtistEntity?
++
+     @Query("SELECT * FROM unified_artists WHERE artist_key = :key LIMIT 1")
+     suspend fun getArtistByKey(key: String): UnifiedArtistEntity?
+ 
+diff --git a/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedSongEntity.kt b/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedSongEntity.kt
+index c8192c45b..c4e744ae1 100644
+--- a/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedSongEntity.kt
++++ b/app/src/main/java/code/name/monkey/retromusic/db/catalog/UnifiedSongEntity.kt
+@@ -82,6 +82,10 @@ data class UnifiedSongEntity(
+     val fingerprint: String = ""
+ ) {
+     fun toSong(): Song {
++        if (!subsonicId.isNullOrBlank()) {
++            code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerMapping(id, subsonicId)
++        }
++
+         val streamData = if (!localPath.isNullOrBlank()) {
+             localPath
+         } else if (!subsonicId.isNullOrBlank()) {
+@@ -116,9 +120,17 @@ data class UnifiedSongEntity(
+         const val MASK_LOCAL = SOURCE_LOCAL or SOURCE_BOTH // 3 & 1 or 3 & 3
+         const val MASK_SERVER = SOURCE_SERVER or SOURCE_BOTH
+ 
++        fun normalizeString(str: String?): String {
++            if (str == null) return ""
++            var s = str.trim().lowercase(java.util.Locale.ROOT)
++            s = s.replace(Regex("""\s*[\(\[][^\)\]]*(?:feat|ft\.|remaster|deluxe|version|edition|lyrics|explicit|clean|official|video|audio|www\.)[^\)\]]*[\)\]]""", RegexOption.IGNORE_CASE), "")
++            s = s.replace(Regex("""[^\p{L}\p{N}]+"""), " ").trim()
++            return s
++        }
++
+         fun createFingerprint(title: String?, artist: String?): String {
+-            val t = title?.trim()?.lowercase(java.util.Locale.ROOT) ?: ""
+-            val a = artist?.trim()?.lowercase(java.util.Locale.ROOT) ?: ""
++            val t = normalizeString(title)
++            val a = normalizeString(artist)
+             return "$a|||$t"
+         }
+     }
+diff --git a/app/src/main/java/code/name/monkey/retromusic/glide/RetroGlideExtension.kt b/app/src/main/java/code/name/monkey/retromusic/glide/RetroGlideExtension.kt
+index 0feb96b45..5d3155d5e 100644
+--- a/app/src/main/java/code/name/monkey/retromusic/glide/RetroGlideExtension.kt
++++ b/app/src/main/java/code/name/monkey/retromusic/glide/RetroGlideExtension.kt
+@@ -63,7 +63,19 @@ object RetroGlideExtension {
+         if (code.name.monkey.retromusic.network.subsonic.SubsonicMapper.isSubsonicId(song.id)) {
+             val subsonicAlbumId = code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toSubsonicId(song.albumId)
+                 ?: code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toSubsonicId(song.id) ?: ""
+-            return code.name.monkey.retromusic.network.subsonic.SubsonicClientFactory.buildCoverArtUrl(subsonicAlbumId)
++            if (subsonicAlbumId.isNotBlank()) {
++                return code.name.monkey.retromusic.network.subsonic.SubsonicClientFactory.buildCoverArtUrl(subsonicAlbumId)
++            }
++        }
++        if (song.data.startsWith("http://") || song.data.startsWith("https://")) {
++            val subId = code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toSubsonicId(song.id)
++                ?: code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toSubsonicId(song.albumId) ?: ""
++            if (subId.isNotBlank()) {
++                return code.name.monkey.retromusic.network.subsonic.SubsonicClientFactory.buildCoverArtUrl(subId)
++            }
++        }
++        if (song.data.isNotBlank() && java.io.File(song.data).exists()) {
++            return AudioFileCover(song.data)
+         }
+         return if (ignoreMediaStore || MusicUtil.isAlbumNameUnknown(song.albumName, song.artistName)) {
+             AudioFileCover(song.data)
+@@ -79,13 +91,23 @@ object RetroGlideExtension {
+     fun getAlbumModel(album: Album): Any? {
+         if (code.name.monkey.retromusic.network.subsonic.SubsonicMapper.isSubsonicId(album.id)) {
+             val subsonicAlbumId = code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toSubsonicId(album.id) ?: ""
+-            return code.name.monkey.retromusic.network.subsonic.SubsonicClientFactory.buildCoverArtUrl(subsonicAlbumId)
++            if (subsonicAlbumId.isNotBlank()) {
++                return code.name.monkey.retromusic.network.subsonic.SubsonicClientFactory.buildCoverArtUrl(subsonicAlbumId)
++            }
+         }
+         if (MusicUtil.isAlbumNameUnknown(album.title, album.artistName)) {
+             return null
+         }
+-        val localSong = album.songs.firstOrNull { !code.name.monkey.retromusic.network.subsonic.SubsonicMapper.isSubsonicId(it.id) }
+-        return getSongModel(localSong ?: album.safeGetFirstSong())
++        val localSong = album.songs.firstOrNull { it.data.isNotBlank() && java.io.File(it.data).exists() }
++        if (localSong != null) {
++            return getSongModel(localSong)
++        }
++        val serverSong = album.songs.firstOrNull { code.name.monkey.retromusic.network.subsonic.SubsonicMapper.isSubsonicId(it.id) || it.data.startsWith("http") }
++        if (serverSong != null) {
++            return getSongModel(serverSong)
++        }
++        val firstSong = album.safeGetFirstSong()
++        return if (firstSong != Song.emptySong) getSongModel(firstSong) else null
+     }
+ 
+     fun getArtistModel(artist: Artist): Any {
+@@ -95,7 +117,9 @@ object RetroGlideExtension {
+         }
+         if (code.name.monkey.retromusic.network.subsonic.SubsonicMapper.isSubsonicId(artist.id)) {
+             val subsonicArtistId = code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toSubsonicId(artist.id) ?: ""
+-            return code.name.monkey.retromusic.network.subsonic.SubsonicClientFactory.buildCoverArtUrl(subsonicArtistId)
++            if (subsonicArtistId.isNotBlank()) {
++                return code.name.monkey.retromusic.network.subsonic.SubsonicClientFactory.buildCoverArtUrl(subsonicArtistId)
++            }
+         }
+         return getArtistModel(
+             artist,
+@@ -111,7 +135,9 @@ object RetroGlideExtension {
+         }
+         if (code.name.monkey.retromusic.network.subsonic.SubsonicMapper.isSubsonicId(artist.id)) {
+             val subsonicArtistId = code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toSubsonicId(artist.id) ?: ""
+-            return code.name.monkey.retromusic.network.subsonic.SubsonicClientFactory.buildCoverArtUrl(subsonicArtistId)
++            if (subsonicArtistId.isNotBlank()) {
++                return code.name.monkey.retromusic.network.subsonic.SubsonicClientFactory.buildCoverArtUrl(subsonicArtistId)
++            }
+         }
+         return getArtistModel(
+             artist,
+diff --git a/app/src/main/java/code/name/monkey/retromusic/network/subsonic/SubsonicMapper.kt b/app/src/main/java/code/name/monkey/retromusic/network/subsonic/SubsonicMapper.kt
+index 293c69c0a..878fad337 100644
+--- a/app/src/main/java/code/name/monkey/retromusic/network/subsonic/SubsonicMapper.kt
++++ b/app/src/main/java/code/name/monkey/retromusic/network/subsonic/SubsonicMapper.kt
+@@ -20,6 +20,13 @@ object SubsonicMapper {
+     private val metroToSubsonicMap = ConcurrentHashMap<Long, String>()
+     private val songCache = ConcurrentHashMap<Long, SubsonicSong>()
+ 
++    fun registerMapping(metroId: Long, subsonicId: String) {
++        if (subsonicId.isNotBlank()) {
++            subsonicToMetroMap[subsonicId] = metroId
++            metroToSubsonicMap[metroId] = subsonicId
++        }
++    }
++
+     fun toMetroId(subsonicId: String): Long {
+         if (subsonicId.isBlank()) return -1L
+         subsonicToMetroMap[subsonicId]?.let { return it }
+@@ -42,7 +49,7 @@ object SubsonicMapper {
+     }
+ 
+     fun isSubsonicId(id: Long): Boolean {
+-        return id < 0
++        return id < 0 || metroToSubsonicMap.containsKey(id)
+     }
+ 
+     fun getCachedSong(metroId: Long): SubsonicSong? = songCache[metroId]
+diff --git a/app/src/main/java/code/name/monkey/retromusic/repository/Repository.kt b/app/src/main/java/code/name/monkey/retromusic/repository/Repository.kt
+index b0a63c4e7..90c462a58 100644
+--- a/app/src/main/java/code/name/monkey/retromusic/repository/Repository.kt
++++ b/app/src/main/java/code/name/monkey/retromusic/repository/Repository.kt
+@@ -180,8 +180,10 @@ class RealRepository(
+     override suspend fun albumByIdAsync(albumId: Long): Album {
+         val mask = getSourceMask()
+         val albumEntity = catalogDao.getAlbumById(albumId)
++            ?: catalogDao.getAlbumByLocalId(albumId)
++            ?: code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toSubsonicId(albumId)?.let { catalogDao.getAlbumBySubsonicId(it) }
+         if (albumEntity != null) {
+-            val songs = catalogDao.getSongsByAlbumIdFiltered(albumId, mask).map { it.toSong() }
++            val songs = catalogDao.getSongsByAlbumIdFiltered(albumEntity.id, mask).map { it.toSong() }
+             return albumEntity.toAlbum(songs)
+         }
+         return albumRepository.album(albumId)
+@@ -219,8 +221,10 @@ class RealRepository(
+     override suspend fun artistById(artistId: Long): Artist {
+         val mask = getSourceMask()
+         val artistEntity = catalogDao.getArtistById(artistId)
++            ?: catalogDao.getArtistByLocalId(artistId)
++            ?: code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toSubsonicId(artistId)?.let { catalogDao.getArtistBySubsonicId(it) }
+         if (artistEntity != null) {
+-            val albums = catalogDao.getAlbumsByArtistIdFiltered(artistId, mask).map { albumEntity ->
++            val albums = catalogDao.getAlbumsByArtistIdFiltered(artistEntity.id, mask).map { albumEntity ->
+                 val songs = catalogDao.getSongsByAlbumIdFiltered(albumEntity.id, mask).map { it.toSong() }
+                 albumEntity.toAlbum(songs)
+             }
+@@ -229,16 +233,31 @@ class RealRepository(
+         return artistRepository.artist(artistId)
+     }
+ 
+-    override suspend fun albumArtistByName(name: String): Artist =
+-        artistRepository.albumArtist(name)
++    override suspend fun albumArtistByName(name: String): Artist {
++        val mask = getSourceMask()
++        val artistEntity = catalogDao.getArtistByName(name)
++            ?: catalogDao.getAllArtists().firstOrNull { it.name.equals(name, ignoreCase = true) }
++        if (artistEntity != null) {
++            val albums = catalogDao.getAlbumsByArtistIdFiltered(artistEntity.id, mask).map { albumEntity ->
++                val songs = catalogDao.getSongsByAlbumIdFiltered(albumEntity.id, mask).map { it.toSong() }
++                albumEntity.toAlbum(songs)
++            }
++            return artistEntity.toArtist(albums)
++        }
++        return artistRepository.albumArtist(name)
++    }
+ 
+-    override suspend fun recentArtists(): List<Artist> = lastAddedRepository.recentArtists()
++    override suspend fun recentArtists(): List<Artist> =
++        lastAddedRepository.recentArtists().map { artistById(it.id) }
+ 
+-    override suspend fun recentAlbums(): List<Album> = lastAddedRepository.recentAlbums()
++    override suspend fun recentAlbums(): List<Album> =
++        lastAddedRepository.recentAlbums().map { albumByIdAsync(it.id) }
+ 
+-    override suspend fun topArtists(): List<Artist> = topPlayedRepository.topArtists()
++    override suspend fun topArtists(): List<Artist> =
++        topPlayedRepository.topArtists().map { artistById(it.id) }
+ 
+-    override suspend fun topAlbums(): List<Album> = topPlayedRepository.topAlbums()
++    override suspend fun topAlbums(): List<Album> =
++        topPlayedRepository.topAlbums().map { albumByIdAsync(it.id) }
+ 
+     override suspend fun fetchLegacyPlaylist(): List<Playlist> = playlistRepository.playlists()
+ 
+@@ -479,22 +498,22 @@ class RealRepository(
+     }
+ 
+     override suspend fun recentArtistsHome(): Home {
+-        val artists = lastAddedRepository.recentArtists().take(5)
++        val artists = lastAddedRepository.recentArtists().take(5).map { artistById(it.id) }
+         return Home(artists, RECENT_ARTISTS, R.string.recent_artists)
+     }
+ 
+     override suspend fun recentAlbumsHome(): Home {
+-        val albums = lastAddedRepository.recentAlbums().take(5)
++        val albums = lastAddedRepository.recentAlbums().take(5).map { albumByIdAsync(it.id) }
+         return Home(albums, RECENT_ALBUMS, R.string.recent_albums)
+     }
+ 
+     override suspend fun topAlbumsHome(): Home {
+-        val albums = topPlayedRepository.topAlbums().take(5)
++        val albums = topPlayedRepository.topAlbums().take(5).map { albumByIdAsync(it.id) }
+         return Home(albums, TOP_ALBUMS, R.string.top_albums)
+     }
+ 
+     override suspend fun topArtistsHome(): Home {
+-        val artists = topPlayedRepository.topArtists().take(5)
++        val artists = topPlayedRepository.topArtists().take(5).map { artistById(it.id) }
+         return Home(artists, TOP_ARTISTS, R.string.top_artists)
+     }
+ 
+-- 
+2.45.2.windows.1
+
