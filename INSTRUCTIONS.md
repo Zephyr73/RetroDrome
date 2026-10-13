@@ -65,39 +65,69 @@ When the user says *"push updates"*, *"push to github"*, or *"commit and push"*:
 
 ---
 
+## 🏷️ Versioning Protocol for AI Harnesses & Automations
+
+RetroDrome uses an explicit **dual versioning system** to keep upstream lineage transparent while providing independent semantic versioning for RetroDrome:
+
+### 1. Version Components in `app/build.gradle.kts`
+```kotlin
+val retrodromeVersion = "1.0.0"       // RetroDrome Semantic Version (MAJOR.MINOR.PATCH)
+val upstreamRetroVersion = "7.0.3"     // Base upstream RetroMusic tag / version
+versionName = "$retrodromeVersion (based on $upstreamRetroVersion)"
+versionCode = 10703                    // Android version code
+```
+
+### 2. When to Increment Each Component
+- **Bump `retrodromeVersion` PATCH (`1.0.0` -> `1.0.1`)**:
+  - Bug fixes (e.g. playback errors, sync glitch, date formatters, lint issues).
+  - Minor UI styling adjustments.
+- **Bump `retrodromeVersion` MINOR (`1.0.0` -> `1.1.0`)**:
+  - New backwards-compatible features (e.g. Subsonic lyrics, server playlists, offline caching, new widgets).
+  - Reset PATCH to 0.
+- **Bump `retrodromeVersion` MAJOR (`1.0.0` -> `2.0.0`)**:
+  - Architectural overhauls or database schema migrations that break backwards compatibility.
+  - Reset MINOR and PATCH to 0.
+- **Bump `upstreamRetroVersion` (`7.0.3` -> `7.0.4`)**:
+  - ONLY incremented when rebasing RetroDrome onto a new upstream RetroMusic release.
+  - Bump `versionCode` to match upstream or add appropriate build offset.
+
+### 3. Git Tag Format
+- Always prefix with `v` followed by the RetroDrome version: **`v<retrodromeVersion>`** (e.g. `v1.0.0`, `v1.0.1`).
+- **DO NOT** use the upstream version for the Git tag (e.g. do NOT tag `v7.0.3` for a RetroDrome release).
+
+---
+
 ### Playbook 2: "Make a release" / "Publish release"
 
-When the user says *"make a release"*, *"release v1.0.1"*, or *"cut a release"*:
+When the user says *"make a release"*, *"release vX.Y.Z"*, or *"cut a release"*:
 
-1. **Bump Version** in `app/build.gradle.kts`:
-   ```kotlin
-   val retrodromeVersion = "1.0.1"        // <-- Bump this
-   val upstreamRetroVersion = "7.0.3"      // Upstream base
-   versionName = "$retrodromeVersion (based on $upstreamRetroVersion)"
-   ```
-2. **Build Release APK**:
+1. **Verify or Bump Version** in `app/build.gradle.kts`:
+   - Set `retrodromeVersion = "X.Y.Z"`
+   - Ensure `versionName = "$retrodromeVersion (based on $upstreamRetroVersion)"`
+2. **Local Pre-flight Verification**:
+   - Run both lint and release compilation:
+     ```bash
+     ./gradlew lint
+     ./gradlew :app:assembleFdroidRelease
+     ```
+   - Verify output APK exists at: `app/build/outputs/apk/fdroid/release/app-fdroid-release.apk`
+3. **Commit Code & Re-export Clean Patches**:
    ```bash
-   ./gradlew :app:assembleFdroidRelease
-   ```
-   - Verify the output: `app/build/outputs/apk/fdroid/release/app-fdroid-release.apk`
-   - Note: If no signing keystore secrets are present, Gradle safely signs with the debug key automatically.
-3. **Commit & Re-export Patches**:
-   ```bash
-   git add app/build.gradle.kts
-   git commit -m "chore: bump version to 1.0.1"
-   ./scripts/export-patches.sh # or .\scripts\export-patches.ps1
+   git add app/build.gradle.kts INSTRUCTIONS.md
+   git commit -m "chore: bump version to X.Y.Z"
+   ./scripts/export-patches.sh   # or .\scripts\export-patches.ps1
    git add patches/
-   git commit -m "chore: update patch series for v1.0.1"
+   git commit -m "chore: update patch series for vX.Y.Z"
    ```
-4. **Push Branch & Create Git Tag**:
+4. **Push Branch & Push Annotated Tag**:
    ```bash
    git push origin dev
-   git tag -a v1.0.1 -m "RetroDrome Release v1.0.1 (based on 7.0.3)"
-   git push origin v1.0.1
+   git tag -a vX.Y.Z -m "RetroDrome Release vX.Y.Z (based on <upstreamRetroVersion>)"
+   git push origin vX.Y.Z
    ```
-5. **GitHub Release Automation**:
+5. **Monitor GitHub Release CI**:
    - Pushing tag `v*` automatically triggers `.github/workflows/release.yml`.
-   - The workflow compiles `:app:assembleFdroidRelease`, creates the GitHub Release, attaches the APK, and generates release notes.
+   - The workflow compiles the release APK, generates release notes from commits, and publishes the GitHub Release with `app-fdroid-release.apk` attached.
 
 ---
 
