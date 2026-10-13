@@ -51,13 +51,22 @@ Guidance for coding agents working in this repository.
 - Use the existing Glide integration and `RetroGlideExtension` patterns for album art, artist art, palettes, widgets, and notifications.
 - Clear or replace long-lived Glide targets when updating widgets/notifications to avoid leaking stale targets.
 - Be cautious with large libraries: avoid repeated full-list sorting/filtering on the main thread and avoid decoding large artwork directly in render paths.
-- Do not add music downloading or streaming behavior; the app is a local music player.
+- Do not add arbitrary music downloading or YouTube streaming; Navidrome Subsonic server integration is supported and managed via `SubsonicClient`, `MusicCatalogSyncEngine`, and `UnifiedMusicDao`.
+
+## Automated Workflows & AI Instructions
+
+- See [`INSTRUCTIONS.md`](INSTRUCTIONS.md) for full playbooks for autonomous execution:
+  - **Pushing Updates**: Commit code -> run `./scripts/export-patches.sh` (or `.\scripts\export-patches.ps1`) -> commit `patches/` -> `git push origin dev`.
+  - **Making a Release**: Bump `retrodromeVersion` in `app/build.gradle.kts` -> build `:app:assembleFdroidRelease` -> commit and re-export patches -> push git tag `v*` to trigger `.github/workflows/release.yml`.
+  - **Syncing Upstream**: Run `./scripts/sync-upstream.sh` (or `.\scripts\sync-upstream.ps1`) to detect upstream Retro bugfixes and rebase cleanly with `--rebase`.
+  - **Dual Versioning**: Maintain format `Version <RetroDrome> (based on <Upstream>)` (e.g. `1.0.0 (based on 7.0.3)`).
 
 ## Dependencies And Generated Files
 
 - Keep dependency versions in `gradle/libs.versions.toml`.
 - Use KSP-backed processors already configured for Room and Glide.
 - Do not edit generated outputs, `.gradle/`, build folders, IDE metadata, or signing/local property files.
+- Do not edit files inside `patches/` directly; always edit source code and re-export via `export-patches`.
 - Do not commit secrets such as `retro.properties`, `public.properties`, keystores, or API keys.
 
 ## Change Hygiene
@@ -66,3 +75,4 @@ Guidance for coding agents working in this repository.
 - Keep changes scoped; do not perform broad rewrites, dependency upgrades, or style-only churn unless requested.
 - Match surrounding Kotlin/Java style and resource organization. This repo has both Kotlin and Java; prefer the local file's existing language and style.
 - For significant features or refactors, follow `CONTRIBUTING.md`: confirm the direction before investing in a large implementation.
+
