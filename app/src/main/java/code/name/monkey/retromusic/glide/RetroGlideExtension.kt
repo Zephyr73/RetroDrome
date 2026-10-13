@@ -63,7 +63,19 @@ object RetroGlideExtension {
         if (code.name.monkey.retromusic.network.subsonic.SubsonicMapper.isSubsonicId(song.id)) {
             val subsonicAlbumId = code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toSubsonicId(song.albumId)
                 ?: code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toSubsonicId(song.id) ?: ""
-            return code.name.monkey.retromusic.network.subsonic.SubsonicClientFactory.buildCoverArtUrl(subsonicAlbumId)
+            if (subsonicAlbumId.isNotBlank()) {
+                return code.name.monkey.retromusic.network.subsonic.SubsonicClientFactory.buildCoverArtUrl(subsonicAlbumId)
+            }
+        }
+        if (song.data.startsWith("http://") || song.data.startsWith("https://")) {
+            val subId = code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toSubsonicId(song.id)
+                ?: code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toSubsonicId(song.albumId) ?: ""
+            if (subId.isNotBlank()) {
+                return code.name.monkey.retromusic.network.subsonic.SubsonicClientFactory.buildCoverArtUrl(subId)
+            }
+        }
+        if (song.data.isNotBlank() && java.io.File(song.data).exists()) {
+            return AudioFileCover(song.data)
         }
         return if (ignoreMediaStore || MusicUtil.isAlbumNameUnknown(song.albumName, song.artistName)) {
             AudioFileCover(song.data)
@@ -79,13 +91,23 @@ object RetroGlideExtension {
     fun getAlbumModel(album: Album): Any? {
         if (code.name.monkey.retromusic.network.subsonic.SubsonicMapper.isSubsonicId(album.id)) {
             val subsonicAlbumId = code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toSubsonicId(album.id) ?: ""
-            return code.name.monkey.retromusic.network.subsonic.SubsonicClientFactory.buildCoverArtUrl(subsonicAlbumId)
+            if (subsonicAlbumId.isNotBlank()) {
+                return code.name.monkey.retromusic.network.subsonic.SubsonicClientFactory.buildCoverArtUrl(subsonicAlbumId)
+            }
         }
         if (MusicUtil.isAlbumNameUnknown(album.title, album.artistName)) {
             return null
         }
-        val localSong = album.songs.firstOrNull { !code.name.monkey.retromusic.network.subsonic.SubsonicMapper.isSubsonicId(it.id) }
-        return getSongModel(localSong ?: album.safeGetFirstSong())
+        val localSong = album.songs.firstOrNull { it.data.isNotBlank() && java.io.File(it.data).exists() }
+        if (localSong != null) {
+            return getSongModel(localSong)
+        }
+        val serverSong = album.songs.firstOrNull { code.name.monkey.retromusic.network.subsonic.SubsonicMapper.isSubsonicId(it.id) || it.data.startsWith("http") }
+        if (serverSong != null) {
+            return getSongModel(serverSong)
+        }
+        val firstSong = album.safeGetFirstSong()
+        return if (firstSong != Song.emptySong) getSongModel(firstSong) else null
     }
 
     fun getArtistModel(artist: Artist): Any {
@@ -95,7 +117,9 @@ object RetroGlideExtension {
         }
         if (code.name.monkey.retromusic.network.subsonic.SubsonicMapper.isSubsonicId(artist.id)) {
             val subsonicArtistId = code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toSubsonicId(artist.id) ?: ""
-            return code.name.monkey.retromusic.network.subsonic.SubsonicClientFactory.buildCoverArtUrl(subsonicArtistId)
+            if (subsonicArtistId.isNotBlank()) {
+                return code.name.monkey.retromusic.network.subsonic.SubsonicClientFactory.buildCoverArtUrl(subsonicArtistId)
+            }
         }
         return getArtistModel(
             artist,
@@ -111,7 +135,9 @@ object RetroGlideExtension {
         }
         if (code.name.monkey.retromusic.network.subsonic.SubsonicMapper.isSubsonicId(artist.id)) {
             val subsonicArtistId = code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toSubsonicId(artist.id) ?: ""
-            return code.name.monkey.retromusic.network.subsonic.SubsonicClientFactory.buildCoverArtUrl(subsonicArtistId)
+            if (subsonicArtistId.isNotBlank()) {
+                return code.name.monkey.retromusic.network.subsonic.SubsonicClientFactory.buildCoverArtUrl(subsonicArtistId)
+            }
         }
         return getArtistModel(
             artist,

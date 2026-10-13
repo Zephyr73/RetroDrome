@@ -20,6 +20,13 @@ object SubsonicMapper {
     private val metroToSubsonicMap = ConcurrentHashMap<Long, String>()
     private val songCache = ConcurrentHashMap<Long, SubsonicSong>()
 
+    fun registerMapping(metroId: Long, subsonicId: String) {
+        if (subsonicId.isNotBlank()) {
+            subsonicToMetroMap[subsonicId] = metroId
+            metroToSubsonicMap[metroId] = subsonicId
+        }
+    }
+
     fun toMetroId(subsonicId: String): Long {
         if (subsonicId.isBlank()) return -1L
         subsonicToMetroMap[subsonicId]?.let { return it }
@@ -42,7 +49,7 @@ object SubsonicMapper {
     }
 
     fun isSubsonicId(id: Long): Boolean {
-        return id < 0
+        return id < 0 || metroToSubsonicMap.containsKey(id)
     }
 
     fun getCachedSong(metroId: Long): SubsonicSong? = songCache[metroId]

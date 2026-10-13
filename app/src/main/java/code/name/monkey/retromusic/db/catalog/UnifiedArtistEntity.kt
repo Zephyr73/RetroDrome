@@ -46,6 +46,9 @@ data class UnifiedArtistEntity(
     val artistKey: String = ""
 ) {
     fun toArtist(albums: List<Album>): Artist {
+        if (!subsonicArtistId.isNullOrBlank()) {
+            code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerMapping(id, subsonicArtistId)
+        }
         val artist = Artist(id, albums)
         artist.name = name
         return artist
@@ -53,7 +56,7 @@ data class UnifiedArtistEntity(
 
     companion object {
         fun createArtistKey(name: String?): String {
-            return name?.trim()?.lowercase(java.util.Locale.ROOT) ?: ""
+            return UnifiedSongEntity.normalizeString(name)
         }
     }
 }

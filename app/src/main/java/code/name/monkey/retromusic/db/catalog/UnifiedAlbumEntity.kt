@@ -59,13 +59,16 @@ data class UnifiedAlbumEntity(
     val albumKey: String = ""
 ) {
     fun toAlbum(songs: List<Song>): Album {
+        if (!subsonicAlbumId.isNullOrBlank()) {
+            code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerMapping(id, subsonicAlbumId)
+        }
         return Album(id = id, songs = songs)
     }
 
     companion object {
         fun createAlbumKey(title: String?, artist: String?): String {
-            val t = title?.trim()?.lowercase(java.util.Locale.ROOT) ?: ""
-            val a = artist?.trim()?.lowercase(java.util.Locale.ROOT) ?: ""
+            val t = UnifiedSongEntity.normalizeString(title)
+            val a = UnifiedSongEntity.normalizeString(artist)
             return "$a|||$t"
         }
     }

@@ -58,6 +58,12 @@ interface UnifiedMusicDao {
     @Query("SELECT * FROM unified_albums WHERE id = :id LIMIT 1")
     suspend fun getAlbumById(id: Long): UnifiedAlbumEntity?
 
+    @Query("SELECT * FROM unified_albums WHERE local_album_id = :localAlbumId LIMIT 1")
+    suspend fun getAlbumByLocalId(localAlbumId: Long): UnifiedAlbumEntity?
+
+    @Query("SELECT * FROM unified_albums WHERE subsonic_album_id = :subsonicAlbumId LIMIT 1")
+    suspend fun getAlbumBySubsonicId(subsonicAlbumId: String): UnifiedAlbumEntity?
+
     @Query("SELECT * FROM unified_albums WHERE artist_id = :artistId ORDER BY year DESC, title COLLATE NOCASE ASC")
     suspend fun getAlbumsByArtistId(artistId: Long): List<UnifiedAlbumEntity>
 
@@ -82,6 +88,15 @@ interface UnifiedMusicDao {
 
     @Query("SELECT * FROM unified_artists WHERE id = :id LIMIT 1")
     suspend fun getArtistById(id: Long): UnifiedArtistEntity?
+
+    @Query("SELECT * FROM unified_artists WHERE local_artist_id = :localArtistId LIMIT 1")
+    suspend fun getArtistByLocalId(localArtistId: Long): UnifiedArtistEntity?
+
+    @Query("SELECT * FROM unified_artists WHERE subsonic_artist_id = :subsonicArtistId LIMIT 1")
+    suspend fun getArtistBySubsonicId(subsonicArtistId: String): UnifiedArtistEntity?
+
+    @Query("SELECT * FROM unified_artists WHERE LOWER(TRIM(name)) = LOWER(TRIM(:name)) LIMIT 1")
+    suspend fun getArtistByName(name: String): UnifiedArtistEntity?
 
     @Query("SELECT * FROM unified_artists WHERE artist_key = :key LIMIT 1")
     suspend fun getArtistByKey(key: String): UnifiedArtistEntity?

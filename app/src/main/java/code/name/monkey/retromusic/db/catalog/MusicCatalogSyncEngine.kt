@@ -28,6 +28,10 @@ class MusicCatalogSyncEngine(
 ) {
 
     private val syncMutex = Mutex()
+    private val localAlbumIds = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private val localArtistIds = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private val subsonicAlbumIds = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val subsonicArtistIds = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     @Volatile
     var isSyncing: Boolean = false
@@ -71,6 +75,39 @@ class MusicCatalogSyncEngine(
             }
 
             logD("MusicCatalogSyncEngine: Syncing ${localSongs.size} local songs...")
+            for (local in localSongs) {
+                if (local.albumId > 0) {
+                    val albumKey = UnifiedAlbumEntity.createAlbumKey(
+                        local.albumName,
+                        local.albumArtist?.takeIf { it.isNotBlank() } ?: local.artistName
+                    )
+                    localAlbumIds[albumKey] = local.albumId
+                }
+                if (local.artistId > 0) {
+                    val artistKey = UnifiedArtistEntity.createArtistKey(
+                        local.albumArtist?.takeIf { it.isNotBlank() } ?: local.artistName
+                    )
+                    localArtistIds[artistKey] = local.artistId
+                }
+            }
+
+            try {
+                for (album in albumRepo.albums()) {
+                    if (album.id > 0) {
+                        val key = UnifiedAlbumEntity.createAlbumKey(album.title, album.artistName)
+                        localAlbumIds[key] = album.id
+                    }
+                }
+                for (artist in artistRepo.artists()) {
+                    if (artist.id > 0) {
+                        val key = UnifiedArtistEntity.createArtistKey(artist.name)
+                        localArtistIds[key] = artist.id
+                    }
+                }
+            } catch (e: Exception) {
+                logE("MusicCatalogSyncEngine: Error mapping local album/artist repos: ${e.message}")
+            }
+
             val existingSongs = dao.getAllSongs().associateBy { it.fingerprint }
 
             val songsToSave = mutableListOf<UnifiedSongEntity>()
@@ -149,6 +186,21 @@ class MusicCatalogSyncEngine(
                     null
                 } ?: continue
 
+                val albumKey = UnifiedAlbumEntity.createAlbumKey(
+                    fullAlbum.title,
+                    fullAlbum.artistName
+                )
+                val subAlbumIdStr = SubsonicMapper.toSubsonicId(fullAlbum.id)
+                    ?: SubsonicMapper.toSubsonicId(albumSummary.id)
+                if (!subAlbumIdStr.isNullOrBlank()) {
+                    subsonicAlbumIds[albumKey] = subAlbumIdStr
+                }
+                val artistKey = UnifiedArtistEntity.createArtistKey(fullAlbum.artistName)
+                val subArtistIdStr = SubsonicMapper.toSubsonicId(fullAlbum.artistId)
+                if (!subArtistIdStr.isNullOrBlank()) {
+                    subsonicArtistIds[artistKey] = subArtistIdStr
+                }
+
                 for (remoteSong in fullAlbum.songs) {
                     val fp = UnifiedSongEntity.createFingerprint(remoteSong.title, remoteSong.artistName)
                     val existing = existingSongs[fp]
@@ -160,17 +212,17 @@ class MusicCatalogSyncEngine(
                         existing.albumName.equals(remoteSong.albumName, ignoreCase = true)
                     )
 
-                    if (isMatch) {
+                    if (isMatch && existing != null) {
                         // Unify existing local song with server song!
                         val updated = existing.copy(
                             subsonicId = subId,
                             source = SOURCE_BOTH
                         )
                         songsToUpsert.add(updated)
-                    } else if (existing == null || existing.source == SOURCE_SERVER) {
+                    } else {
                         // Pure server song
                         val newSong = UnifiedSongEntity(
-                            id = existing?.id ?: 0L,
+                            id = existing?.takeIf { it.source == SOURCE_SERVER }?.id ?: 0L,
                             title = remoteSong.title,
                             trackNumber = remoteSong.trackNumber,
                             year = remoteSong.year,
@@ -227,7 +279,12 @@ class MusicCatalogSyncEngine(
                 else -> SOURCE_LOCAL
             }
 
-            val coverArtUrl = songs.firstOrNull { !it.subsonicId.isNullOrBlank() }?.subsonicId?.let {
+            val resolvedLocalAlbumId = localAlbumIds[albumKey] ?: existing?.localAlbumId
+            val resolvedSubsonicAlbumId = subsonicAlbumIds[albumKey] ?: existing?.subsonicAlbumId
+
+            val coverArtUrl = resolvedSubsonicAlbumId?.let {
+                SubsonicClientFactory.buildCoverArtUrl(it)
+            } ?: songs.firstOrNull { !it.subsonicId.isNullOrBlank() }?.subsonicId?.let {
                 SubsonicClientFactory.buildCoverArtUrl(it)
             } ?: existing?.coverArtUrl
 
@@ -240,8 +297,8 @@ class MusicCatalogSyncEngine(
                 year = sample.year,
                 songCount = songs.size,
                 dateModified = songs.maxOfOrNull { it.dateModified } ?: 0L,
-                localAlbumId = songs.firstOrNull { it.localMediaStoreId != null }?.albumId,
-                subsonicAlbumId = songs.firstOrNull { !it.subsonicId.isNullOrBlank() }?.subsonicId,
+                localAlbumId = resolvedLocalAlbumId,
+                subsonicAlbumId = resolvedSubsonicAlbumId,
                 coverArtUrl = coverArtUrl,
                 source = source,
                 albumKey = albumKey
@@ -286,15 +343,21 @@ class MusicCatalogSyncEngine(
             }
 
             val totalSongs = albums.sumOf { it.songCount }
+            val resolvedLocalArtistId = localArtistIds[artistKey] ?: existing?.localArtistId
+            val resolvedSubsonicArtistId = subsonicArtistIds[artistKey] ?: existing?.subsonicArtistId
+
+            val coverArtUrl = resolvedSubsonicArtistId?.let {
+                SubsonicClientFactory.buildCoverArtUrl(it)
+            } ?: albums.firstOrNull { !it.coverArtUrl.isNullOrBlank() }?.coverArtUrl
 
             val artistEntity = UnifiedArtistEntity(
                 id = existing?.id ?: 0L,
                 name = sample.artistName,
                 songCount = totalSongs,
                 albumCount = albums.size,
-                localArtistId = sample.localAlbumId,
-                subsonicArtistId = sample.subsonicAlbumId,
-                coverArtUrl = albums.firstOrNull { !it.coverArtUrl.isNullOrBlank() }?.coverArtUrl,
+                localArtistId = resolvedLocalArtistId,
+                subsonicArtistId = resolvedSubsonicArtistId,
+                coverArtUrl = coverArtUrl,
                 source = source,
                 artistKey = artistKey
             )

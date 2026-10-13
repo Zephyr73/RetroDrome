@@ -180,8 +180,10 @@ class RealRepository(
     override suspend fun albumByIdAsync(albumId: Long): Album {
         val mask = getSourceMask()
         val albumEntity = catalogDao.getAlbumById(albumId)
+            ?: catalogDao.getAlbumByLocalId(albumId)
+            ?: code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toSubsonicId(albumId)?.let { catalogDao.getAlbumBySubsonicId(it) }
         if (albumEntity != null) {
-            val songs = catalogDao.getSongsByAlbumIdFiltered(albumId, mask).map { it.toSong() }
+            val songs = catalogDao.getSongsByAlbumIdFiltered(albumEntity.id, mask).map { it.toSong() }
             return albumEntity.toAlbum(songs)
         }
         return albumRepository.album(albumId)
@@ -219,8 +221,10 @@ class RealRepository(
     override suspend fun artistById(artistId: Long): Artist {
         val mask = getSourceMask()
         val artistEntity = catalogDao.getArtistById(artistId)
+            ?: catalogDao.getArtistByLocalId(artistId)
+            ?: code.name.monkey.retromusic.network.subsonic.SubsonicMapper.toSubsonicId(artistId)?.let { catalogDao.getArtistBySubsonicId(it) }
         if (artistEntity != null) {
-            val albums = catalogDao.getAlbumsByArtistIdFiltered(artistId, mask).map { albumEntity ->
+            val albums = catalogDao.getAlbumsByArtistIdFiltered(artistEntity.id, mask).map { albumEntity ->
                 val songs = catalogDao.getSongsByAlbumIdFiltered(albumEntity.id, mask).map { it.toSong() }
                 albumEntity.toAlbum(songs)
             }
@@ -229,16 +233,31 @@ class RealRepository(
         return artistRepository.artist(artistId)
     }
 
-    override suspend fun albumArtistByName(name: String): Artist =
-        artistRepository.albumArtist(name)
+    override suspend fun albumArtistByName(name: String): Artist {
+        val mask = getSourceMask()
+        val artistEntity = catalogDao.getArtistByName(name)
+            ?: catalogDao.getAllArtists().firstOrNull { it.name.equals(name, ignoreCase = true) }
+        if (artistEntity != null) {
+            val albums = catalogDao.getAlbumsByArtistIdFiltered(artistEntity.id, mask).map { albumEntity ->
+                val songs = catalogDao.getSongsByAlbumIdFiltered(albumEntity.id, mask).map { it.toSong() }
+                albumEntity.toAlbum(songs)
+            }
+            return artistEntity.toArtist(albums)
+        }
+        return artistRepository.albumArtist(name)
+    }
 
-    override suspend fun recentArtists(): List<Artist> = lastAddedRepository.recentArtists()
+    override suspend fun recentArtists(): List<Artist> =
+        lastAddedRepository.recentArtists().map { artistById(it.id) }
 
-    override suspend fun recentAlbums(): List<Album> = lastAddedRepository.recentAlbums()
+    override suspend fun recentAlbums(): List<Album> =
+        lastAddedRepository.recentAlbums().map { albumByIdAsync(it.id) }
 
-    override suspend fun topArtists(): List<Artist> = topPlayedRepository.topArtists()
+    override suspend fun topArtists(): List<Artist> =
+        topPlayedRepository.topArtists().map { artistById(it.id) }
 
-    override suspend fun topAlbums(): List<Album> = topPlayedRepository.topAlbums()
+    override suspend fun topAlbums(): List<Album> =
+        topPlayedRepository.topAlbums().map { albumByIdAsync(it.id) }
 
     override suspend fun fetchLegacyPlaylist(): List<Playlist> = playlistRepository.playlists()
 
@@ -479,22 +498,22 @@ class RealRepository(
     }
 
     override suspend fun recentArtistsHome(): Home {
-        val artists = lastAddedRepository.recentArtists().take(5)
+        val artists = lastAddedRepository.recentArtists().take(5).map { artistById(it.id) }
         return Home(artists, RECENT_ARTISTS, R.string.recent_artists)
     }
 
     override suspend fun recentAlbumsHome(): Home {
-        val albums = lastAddedRepository.recentAlbums().take(5)
+        val albums = lastAddedRepository.recentAlbums().take(5).map { albumByIdAsync(it.id) }
         return Home(albums, RECENT_ALBUMS, R.string.recent_albums)
     }
 
     override suspend fun topAlbumsHome(): Home {
-        val albums = topPlayedRepository.topAlbums().take(5)
+        val albums = topPlayedRepository.topAlbums().take(5).map { albumByIdAsync(it.id) }
         return Home(albums, TOP_ALBUMS, R.string.top_albums)
     }
 
     override suspend fun topArtistsHome(): Home {
-        val artists = topPlayedRepository.topArtists().take(5)
+        val artists = topPlayedRepository.topArtists().take(5).map { artistById(it.id) }
         return Home(artists, TOP_ARTISTS, R.string.top_artists)
     }
 

@@ -82,6 +82,10 @@ data class UnifiedSongEntity(
     val fingerprint: String = ""
 ) {
     fun toSong(): Song {
+        if (!subsonicId.isNullOrBlank()) {
+            code.name.monkey.retromusic.network.subsonic.SubsonicMapper.registerMapping(id, subsonicId)
+        }
+
         val streamData = if (!localPath.isNullOrBlank()) {
             localPath
         } else if (!subsonicId.isNullOrBlank()) {
@@ -116,9 +120,17 @@ data class UnifiedSongEntity(
         const val MASK_LOCAL = SOURCE_LOCAL or SOURCE_BOTH // 3 & 1 or 3 & 3
         const val MASK_SERVER = SOURCE_SERVER or SOURCE_BOTH
 
+        fun normalizeString(str: String?): String {
+            if (str == null) return ""
+            var s = str.trim().lowercase(java.util.Locale.ROOT)
+            s = s.replace(Regex("""\s*[\(\[][^\)\]]*(?:feat|ft\.|remaster|deluxe|version|edition|lyrics|explicit|clean|official|video|audio|www\.)[^\)\]]*[\)\]]""", RegexOption.IGNORE_CASE), "")
+            s = s.replace(Regex("""[^\p{L}\p{N}]+"""), " ").trim()
+            return s
+        }
+
         fun createFingerprint(title: String?, artist: String?): String {
-            val t = title?.trim()?.lowercase(java.util.Locale.ROOT) ?: ""
-            val a = artist?.trim()?.lowercase(java.util.Locale.ROOT) ?: ""
+            val t = normalizeString(title)
+            val a = normalizeString(artist)
             return "$a|||$t"
         }
     }
