@@ -1,0 +1,54 @@
+From cf80f643de2a02af4e65d689ed130d448252ecad Mon Sep 17 00:00:00 2001
+From: Zephyr <Zephyr73@users.noreply.github.com>
+Date: Mon, 12 Oct 2026 21:59:42 -0400
+Subject: [PATCH 14/14] fix(lint): use SimpleDateFormat to fix NewApi error on
+ API < 26
+
+---
+ .../retromusic/dialogs/SongDetailDialog.kt    | 29 ++++++++++++++-----
+ 1 file changed, 21 insertions(+), 8 deletions(-)
+
+diff --git a/app/src/main/java/code/name/monkey/retromusic/dialogs/SongDetailDialog.kt b/app/src/main/java/code/name/monkey/retromusic/dialogs/SongDetailDialog.kt
+index 8c8a4bea8..f6d32fc75 100644
+--- a/app/src/main/java/code/name/monkey/retromusic/dialogs/SongDetailDialog.kt
++++ b/app/src/main/java/code/name/monkey/retromusic/dialogs/SongDetailDialog.kt
+@@ -253,15 +253,28 @@ class SongDetailDialog : DialogFragment() {
+     private fun parseDateCreated(created: String?): String? {
+         if (created.isNullOrBlank()) return null
+         return try {
+-            val instant = java.time.Instant.parse(created)
+-            MusicUtil.getDateModifiedString(instant.toEpochMilli())
+-        } catch (e: Exception) {
+-            try {
+-                val zdt = java.time.ZonedDateTime.parse(created)
+-                MusicUtil.getDateModifiedString(zdt.toInstant().toEpochMilli())
+-            } catch (e2: Exception) {
+-                created.substringBefore('T')
++            val normalized = created.replace("Z", "+0000").replace(Regex("([+-]\\d{2}):(\\d{2})$"), "$1$2")
++            val formats = listOf(
++                "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
++                "yyyy-MM-dd'T'HH:mm:ssZ",
++                "yyyy-MM-dd'T'HH:mm:ss",
++                "yyyy-MM-dd"
++            )
++            for (pattern in formats) {
++                try {
++                    val sdf = java.text.SimpleDateFormat(pattern, java.util.Locale.US).apply {
++                        timeZone = java.util.TimeZone.getTimeZone("UTC")
++                    }
++                    val date = sdf.parse(normalized)
++                    if (date != null) {
++                        return MusicUtil.getDateModifiedString(date.time)
++                    }
++                } catch (_: Exception) {
++                }
+             }
++            created.substringBefore('T')
++        } catch (_: Exception) {
++            created.substringBefore('T')
+         }
+     }
+ 
+-- 
+2.45.2.windows.1
+
