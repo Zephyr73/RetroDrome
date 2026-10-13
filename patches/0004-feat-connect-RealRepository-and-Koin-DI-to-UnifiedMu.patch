@@ -1,7 +1,7 @@
 From bd3789a39f3bcab35dbc733f5c003190282ee523 Mon Sep 17 00:00:00 2001
 From: Zephyr <Zephyr73@users.noreply.github.com>
 Date: Mon, 12 Oct 2026 18:14:04 -0400
-Subject: [PATCH 4/9] feat: connect RealRepository and Koin DI to
+Subject: [PATCH 04/11] feat: connect RealRepository and Koin DI to
  UnifiedMusicDao and MusicCatalogSyncEngine
 
 ---
