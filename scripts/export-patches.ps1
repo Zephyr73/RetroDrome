@@ -11,11 +11,11 @@ $patchDir = Join-Path $rootDir "patches"
 
 Set-Location $rootDir
 
-Write-Host "==> Exporting commits on top of $BaseRef to $patchDir..." -ForegroundColor Cyan
+Write-Host "==> Exporting feature commits on top of $BaseRef to $patchDir..." -ForegroundColor Cyan
 
 Get-ChildItem -Path $patchDir -Filter "*.patch" -ErrorAction SilentlyContinue | Remove-Item -Force
 
-git format-patch -o $patchDir "$BaseRef..HEAD"
+git format-patch -o $patchDir "$BaseRef..HEAD" -- . ':!patches'
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Failed to export patches from $BaseRef"
     exit $LASTEXITCODE

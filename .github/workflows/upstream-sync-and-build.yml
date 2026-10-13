@@ -40,14 +40,19 @@ jobs:
       - name: Apply RetroDrome Patches onto Upstream
         run: |
           UPSTREAM_REF="${{ github.event.inputs.upstream_ref || 'dev' }}"
+          echo "Preserving patches in temporary storage..."
+          TEMP_PATCH_DIR="$(mktemp -d)"
+          cp -r patches/* "${TEMP_PATCH_DIR}/"
+
           echo "Checking out clean upstream: upstream/${UPSTREAM_REF}"
           git checkout "upstream/${UPSTREAM_REF}"
           
           echo "Validating and applying patches..."
-          for patch in patches/*.patch; do
-            echo "Applying $patch..."
+          for patch in "${TEMP_PATCH_DIR}"/*.patch; do
+            echo "Applying $(basename "$patch")..."
             git apply "$patch"
           done
+          rm -rf "${TEMP_PATCH_DIR}"
 
       - name: Build Degoogled F-Droid Release APK
         run: ./gradlew :app:assembleFdroidRelease

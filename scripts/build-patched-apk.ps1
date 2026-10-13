@@ -12,23 +12,40 @@ $patchDir = Join-Path $rootDir "patches"
 
 Set-Location $rootDir
 
-Write-Host "==> Preparing clean build branch from $BaseRef..." -ForegroundColor Cyan
+$status = git status --porcelain
+if ($status) {
+    Write-Error "Working directory has uncommitted changes. Please commit or stash before running this build script."
+    exit 1
+}
+
+$patches = Get-ChildItem -Path $patchDir -Filter "*.patch" | Sort-Object Name
+if ($patches.Count -eq 0) {
+    Write-Error "No patch files found in $patchDir"
+    exit 1
+}
+
+Write-Host "==> Staging $($patches.Count) patches into temporary storage..." -ForegroundColor Cyan
+$timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+$tempPatchDir = Join-Path ([System.IO.Path]::GetTempPath()) "retrodrome-patches-$timestamp"
+New-Item -ItemType Directory -Force -Path $tempPatchDir | Out-Null
+Copy-Item (Join-Path $patchDir "*.patch") -Destination $tempPatchDir
+
+Write-Host "==> Fetching upstream..." -ForegroundColor Cyan
 git fetch upstream 2>&1 | Out-Null
 
-$timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 $buildBranch = "retrodrome-build-temp-$timestamp"
-
 $currentBranch = (git branch --show-current).Trim()
 
 try {
-    git checkout --quiet -b $buildBranch $BaseRef 2>&1 | Out-Null
+    Write-Host "==> Checking out clean base: $BaseRef..." -ForegroundColor Cyan
+    git checkout --quiet -b $buildBranch $BaseRef
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to checkout base ref $BaseRef"
     }
 
-    $patches = Get-ChildItem -Path $patchDir -Filter "*.patch" | Sort-Object Name
-    Write-Host "==> Applying RetroDrome patches..." -ForegroundColor Cyan
-    foreach ($patch in $patches) {
+    $stagedPatches = Get-ChildItem -Path $tempPatchDir -Filter "*.patch" | Sort-Object Name
+    Write-Host "==> Applying $($stagedPatches.Count) RetroDrome patches..." -ForegroundColor Cyan
+    foreach ($patch in $stagedPatches) {
         Write-Host "  -> Applying $($patch.Name)..."
         git apply $patch.FullName
         if ($LASTEXITCODE -ne 0) {
@@ -54,7 +71,10 @@ try {
 finally {
     Write-Host "==> Cleaning up temporary build branch..." -ForegroundColor Gray
     git reset --hard 2>&1 | Out-Null
-    git clean -fd -e patches -e scripts 2>&1 | Out-Null
+    git clean -fd 2>&1 | Out-Null
     git checkout --quiet $currentBranch 2>&1 | Out-Null
     git branch -D $buildBranch 2>&1 | Out-Null
+    if (Test-Path $tempPatchDir) {
+        Remove-Item -Recurse -Force $tempPatchDir 2>&1 | Out-Null
+    }
 }

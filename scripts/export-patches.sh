@@ -10,9 +10,11 @@ cd "${ROOT_DIR}"
 
 BASE_REF="${1:-upstream/dev}"
 
-echo "==> Exporting commits on top of ${BASE_REF} to ${PATCH_DIR}..."
+echo "==> Exporting feature commits on top of ${BASE_REF} to ${PATCH_DIR}..."
+
 rm -f "${PATCH_DIR}"/*.patch
-git format-patch -o "${PATCH_DIR}" "${BASE_REF}..HEAD"
+
+git format-patch -o "${PATCH_DIR}" "${BASE_REF}..HEAD" -- . ':!patches'
 
 echo "==> Patches exported successfully:"
-ls -l "${PATCH_DIR}"/*.patch
+ls -lh "${PATCH_DIR}"/*.patch

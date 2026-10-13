@@ -18,6 +18,7 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.View
 import androidx.fragment.app.Fragment
+import code.name.monkey.retromusic.BuildConfig
 import code.name.monkey.retromusic.Constants
 import code.name.monkey.retromusic.R
 import code.name.monkey.retromusic.databinding.FragmentAboutBinding
@@ -57,13 +58,15 @@ class AboutFragment : Fragment(R.layout.fragment_about), View.OnClickListener {
     }
 
     private fun getAppVersion(): String {
+        val fallbackVersion =
+            "${BuildConfig.RETRODROME_VERSION} (based on ${BuildConfig.UPSTREAM_RETRO_VERSION})"
         return try {
             val packageInfo =
                 requireActivity().packageManager.getPackageInfo(requireActivity().packageName, 0)
-            packageInfo.versionName ?: "0.0.0"
+            packageInfo.versionName ?: fallbackVersion
         } catch (e: PackageManager.NameNotFoundException) {
             e.printStackTrace()
-            "0.0.0"
+            fallbackVersion
         }
     }
 

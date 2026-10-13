@@ -20,9 +20,15 @@ android {
             useSupportLibrary = true
         }
 
+        val retrodromeVersion = "1.0.0"
+        val upstreamRetroVersion = "7.0.3"
+
         applicationId = namespace
         versionCode = 10703
-        versionName = "7.0.3"
+        versionName = "$retrodromeVersion (based on $upstreamRetroVersion)"
+
+        buildConfigField("String", "RETRODROME_VERSION", "\"$retrodromeVersion\"")
+        buildConfigField("String", "UPSTREAM_RETRO_VERSION", "\"$upstreamRetroVersion\"")
     }
     val signingProperties = getProperties("retro.properties")
     val theSigningConfig = if (signingProperties != null) {

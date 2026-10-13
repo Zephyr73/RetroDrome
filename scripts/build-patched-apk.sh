@@ -8,26 +8,38 @@ PATCH_DIR="${ROOT_DIR}/patches"
 
 cd "${ROOT_DIR}"
 
+if [ -n "$(git status --porcelain)" ]; then
+    echo "Error: Working directory has uncommitted changes. Please commit or stash first."
+    exit 1
+fi
+
 BASE_REF="${1:-upstream/dev}"
-BUILD_TYPE="${2:-Release}" # Release or Debug
+BUILD_TYPE="${2:-Debug}" # Debug or Release
+
+echo "==> Staging patches into temporary storage..."
+TEMP_PATCH_DIR="$(mktemp -d)"
+cp -r "${PATCH_DIR}"/*.patch "${TEMP_PATCH_DIR}/"
 
 echo "==> Preparing clean build branch from ${BASE_REF}..."
 git fetch upstream 2>/dev/null || true
 
+CURRENT_BRANCH="$(git branch --show-current)"
 BUILD_BRANCH="retrodrome-build-temp-$(date +%s)"
-git checkout -b "${BUILD_BRANCH}" "${BASE_REF}"
 
 cleanup() {
     echo "==> Cleaning up temporary build branch..."
     git reset --hard 2>/dev/null || true
-    git clean -fd -e patches -e scripts 2>/dev/null || true
-    git checkout - 2>/dev/null || true
+    git clean -fd 2>/dev/null || true
+    git checkout "${CURRENT_BRANCH}" 2>/dev/null || true
     git branch -D "${BUILD_BRANCH}" 2>/dev/null || true
+    rm -rf "${TEMP_PATCH_DIR}" 2>/dev/null || true
 }
 trap cleanup EXIT
 
+git checkout -b "${BUILD_BRANCH}" "${BASE_REF}"
+
 echo "==> Applying RetroDrome patches..."
-for patch in "${PATCH_DIR}"/*.patch; do
+for patch in "${TEMP_PATCH_DIR}"/*.patch; do
     echo "  -> Applying $(basename "${patch}")..."
     git apply "${patch}"
 done

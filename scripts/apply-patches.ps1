@@ -1,4 +1,8 @@
 # RetroDrome - Apply Patch Layer onto Upstream RetroMusic (PowerShell)
+param (
+    [switch]$CheckOnly
+)
+
 $ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -13,32 +17,22 @@ if ($patches.Count -eq 0) {
     exit 1
 }
 
-# Check if all patches are already applied
-$allAlreadyApplied = $true
+Write-Host "==> Validating $($patches.Count) patches against current tree..." -ForegroundColor Cyan
 foreach ($patch in $patches) {
-    git apply --check --reverse $patch.FullName 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        $allAlreadyApplied = $false
-        break
-    }
-}
-
-if ($allAlreadyApplied) {
-    Write-Host "==> All RetroDrome patches are already applied to the current tree." -ForegroundColor Yellow
-    exit 0
-}
-
-Write-Host "==> Checking patches against current working tree..." -ForegroundColor Cyan
-foreach ($patch in $patches) {
-    Write-Host "  -> Validating $($patch.Name)..."
+    Write-Host "  -> Checking $($patch.Name)..."
     git apply --check $patch.FullName
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "Validation failed for $($patch.Name). Make sure you are on a clean upstream commit."
+        Write-Error "Validation failed for $($patch.Name). Make sure working tree is on clean compatible upstream commit."
         exit $LASTEXITCODE
     }
 }
 
-Write-Host "==> Applying patches..." -ForegroundColor Cyan
+if ($CheckOnly) {
+    Write-Host "==> All patches validated successfully (check-only mode)." -ForegroundColor Green
+    exit 0
+}
+
+Write-Host "==> Applying $($patches.Count) patches..." -ForegroundColor Cyan
 foreach ($patch in $patches) {
     Write-Host "  -> Applying $($patch.Name)..."
     git apply $patch.FullName

@@ -99,26 +99,38 @@ RetroDrome targets Java 21 and the pure F-Droid build flavor:
 ./gradlew :app:assembleFdroidRelease
 ```
 
-### Keeping Up With Upstream RetroMusic
+### Versioning Scheme
 
-RetroDrome uses automated patch management to keep your fork up to date with upstream RetroMusic:
+RetroDrome follows an explicit **dual versioning system**:
+- **RetroDrome Version**: Tracks feature releases and fixes specific to RetroDrome (e.g. `1.0.0`).
+- **Upstream Retro Version**: Identifies the base upstream release (e.g. `7.0.3`).
+- **Display Format**: `Version 1.0.0 (based on 7.0.3)`.
+
+### Automation & Upstream Sync Workflow
+
+RetroDrome includes automated scripts and GitHub Actions pipelines to pull upstream Retro bugfixes, validate patches, and create releases:
 
 ```bash
-# On Linux / macOS / Git Bash:
-./scripts/sync-upstream.sh
+# Fetch latest upstream Retro bugfixes and test patch compatibility:
+.\scripts\sync-upstream.ps1           # Windows PowerShell
+./scripts/sync-upstream.sh             # Linux / macOS
 
-# On Windows PowerShell:
-.\scripts\sync-upstream.ps1
-```
+# Build a clean F-Droid APK directly on top of upstream with patches applied:
+.\scripts\build-patched-apk.ps1 -BuildType Release
+./scripts/build-patched-apk.sh upstream/dev Release
 
-To validate or re-apply patches manually:
-```bash
-# Apply patch series:
+# Validate or re-apply patches on a clean tree:
 .\scripts\apply-patches.ps1
+./scripts/apply-patches.sh
 
-# Export new commits to patches/:
+# Export newly created feature commits to patches/:
 .\scripts\export-patches.ps1
+./scripts/export-patches.sh
 ```
+
+### GitHub Actions Automation
+- **`upstream-sync-and-build.yml`**: Automatically checks out upstream Retro weekly (or on demand), applies all RetroDrome patches, builds the release APK, and uploads it as an artifact.
+- **`release.yml`**: Automatically triggered on tag push (or manual dispatch), builds the release APK, signs it, and publishes a GitHub Release with the APK attached.
 
 ___
 
